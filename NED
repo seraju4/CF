@@ -1,0 +1,815 @@
+{
+	"info": {
+		"_postman_id": "1af1640d-9986-48ea-a7c3-2f7b217c235c",
+		"name": "NewEducationSharePoint ",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "GetSolutionDocument1",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/web/lists/getbytitle('Solutions_Documents')/items?$filter=ID eq '44' and Publish_x0020_to_x0020_Client_x0020_Website eq 'Yes'",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"web",
+						"lists",
+						"getbytitle('Solutions_Documents')",
+						"items"
+					],
+					"query": [
+						{
+							"key": "$filter",
+							"value": "ID eq '44' and Publish_x0020_to_x0020_Client_x0020_Website eq 'Yes'"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetDocType",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/web/lists/getbytitle('Solutions_DocSubTypes')/items?$select=Id,Doc_x0020_Type,Title",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"web",
+						"lists",
+						"getbytitle('Solutions_DocSubTypes')",
+						"items"
+					],
+					"query": [
+						{
+							"key": "$select",
+							"value": "Id,Doc_x0020_Type,Title"
+						}
+					]
+				},
+				"description": "DocType"
+			},
+			"response": []
+		},
+		{
+			"name": "GetFileName_Not Required",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/Web/Lists(guid'505a2765-f63e-42c0-a9a8-55ac27730c6a')/Items(45)/File",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"Web",
+						"Lists(guid'505a2765-f63e-42c0-a9a8-55ac27730c6a')",
+						"Items(45)",
+						"File"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Testing2",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/web/Lists/GetByTitle('Solutions_Documents')/items?$expand=Author0,Solutions_x0020_Topics&$select=ID,Author0/Id,Author0/FirstName,Author0/LastName,Solutions_x0020_Document_x0020_SubType/Title,Solutions_x0020_Topics/ID,Goal_x0020_Type,Client_x0020_Website_x0020_Date,Client_x0020_Website_x0020_Description,Solutions_x0020_Audience,FileLeafRef,Document_x0020_Image &$filter=Publish_x0020_to_x0020_Client_x0020_Website eq 'Yes' and Solutions_x0020_Audience eq 'Internal - PWM' ",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"web",
+						"Lists",
+						"GetByTitle('Solutions_Documents')",
+						"items"
+					],
+					"query": [
+						{
+							"key": "$expand",
+							"value": "Author0,Solutions_x0020_Topics"
+						},
+						{
+							"key": "$select",
+							"value": "ID,Author0/Id,Author0/FirstName,Author0/LastName,Solutions_x0020_Document_x0020_SubType/Title,Solutions_x0020_Topics/ID,Goal_x0020_Type,Client_x0020_Website_x0020_Date,Client_x0020_Website_x0020_Description,Solutions_x0020_Audience,FileLeafRef,Document_x0020_Image "
+						},
+						{
+							"key": "$filter",
+							"value": "Publish_x0020_to_x0020_Client_x0020_Website eq 'Yes' and Solutions_x0020_Audience eq 'Internal - PWM' "
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "oldCode",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/web/Lists/GetByTitle('Solutions_Documents')/items?$expand=Author0&$select=Goal_x0020_Type,Client_x0020_Website_x0020_Description,Author0/Id,Author0/FirstName,Author0/LastName,Document_x0020_Image,FileLeafRef,Client_x0020_Website_x0020_Date&$filter=ContentType eq 'Solutions Content' and Publish_x0020_to_x0020_Client_x0020_Website eq 'Yes' &$top=3&$orderby=Modified%20desc\n",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"web",
+						"Lists",
+						"GetByTitle('Solutions_Documents')",
+						"items"
+					],
+					"query": [
+						{
+							"key": "$expand",
+							"value": "Author0"
+						},
+						{
+							"key": "$select",
+							"value": "Goal_x0020_Type,Client_x0020_Website_x0020_Description,Author0/Id,Author0/FirstName,Author0/LastName,Document_x0020_Image,FileLeafRef,Client_x0020_Website_x0020_Date"
+						},
+						{
+							"key": "$filter",
+							"value": "ContentType eq 'Solutions Content' and Publish_x0020_to_x0020_Client_x0020_Website eq 'Yes' "
+						},
+						{
+							"key": "$top",
+							"value": "3"
+						},
+						{
+							"key": "$orderby",
+							"value": "Modified%20desc\n"
+						}
+					]
+				},
+				"description": "t"
+			},
+			"response": []
+		},
+		{
+			"name": "PWM.GetAllSharePointDocumentAsync",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "authUserId",
+						"value": "devclient",
+						"type": "text"
+					},
+					{
+						"key": "HouseHoldId",
+						"value": "841732FA-BB2B-4D19-9AE8-2DD6B084A66C",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:5000/pwmapi/v1/sharepointdocument/allsharepointdocuments",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "5000",
+					"path": [
+						"pwmapi",
+						"v1",
+						"sharepointdocument",
+						"allsharepointdocuments"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Dev19_PWM.GetAllSharePointDocumentAsync",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "authUserId",
+						"value": "devclient",
+						"type": "text"
+					},
+					{
+						"key": "HouseHoldId",
+						"value": "841732FA-BB2B-4D19-9AE8-2DD6B084A66C",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"data\": [\r\n        {\r\n            \"docName\": \"zeKFPc+rtUZ/N1U2jQwL0xcV9kWg9j8B+4ZTf21pfgc=\",\r\n            \"clientWebSiteDes\": \"Learn why managing cash flow and liquidity is key to meeting your financial goals.\",\r\n            \"clientWebSiteDate\": \"2022-07-14T04:00:00Z\",\r\n            \"authName\": \"Agatha Kulesza\",\r\n            \"docImgUrl\": \"aHR0cHM6Ly9pbnRyYW5ldGRldi5jdGMuc2VpYy5jb20vc2l0ZXMvV2VhbHRoL2RvY3VtZW50cy9Tb2x1dGlvbnNfRG9jdW1lbnRzX0Fzc2V0cy8xODYwNTMtMjAzNTNfY2FzaEZsb3dHdWlkZS5qcGc=\",\r\n            \"tarAudience\": \"Internal - PWM,External - Client,External - Prospects\",\r\n            \"topic\": \"General Wealth Planning,Investments\",\r\n            \"subTopic\": \"General Wealth Planning,Products\",\r\n            \"title\": \"Cash Flow Guide\",\r\n            \"id\": 33167,\r\n            \"isServiceAvailable\": true,\r\n            \"goalType\": \"Self\"\r\n        },\r\n        {\r\n            \"docName\": \"bB8JG5N+bcKs7KpN3ASGKH+ItycQD+dQSiHSQV6r8eokZnTSpkEDp4YOncDugJuDRBidVXjozQlo8ORKFRX8dQ==\",\r\n            \"clientWebSiteDes\": null,\r\n            \"clientWebSiteDate\": \"2023-03-03T05:00:00Z\",\r\n            \"authName\": \" \",\r\n            \"docImgUrl\": \"aHR0cHM6Ly9pbnRyYW5ldGRldi5jdGMuc2VpYy5jb20vc2l0ZXMvV2VhbHRoL2RvY3VtZW50cy9Tb2x1dGlvbnNfRG9jdW1lbnRzX0Fzc2V0cy8xODYwNTMtMjAzNTNfY2FzaEZsb3dHdWlkZS5qcGc=\",\r\n            \"tarAudience\": \"Internal - PWM\",\r\n            \"topic\": \"Business Development\",\r\n            \"subTopic\": \"COI Process,Sales Process - Client\",\r\n            \"title\": \"Process for Secure Bulk Document Uploads for Prospects\",\r\n            \"id\": 33235,\r\n            \"isServiceAvailable\": true,\r\n            \"goalType\": \"Family\"\r\n        }\r\n    ],\r\n    \"paging\": null,\r\n    \"status\": 200,\r\n    \"message\": null\r\n}"
+				},
+				"url": {
+					"raw": "http://seiadvdfsdev19/pwm-soa/pwmapi/v1/sharepointdocument/allsharepointdocuments",
+					"protocol": "http",
+					"host": [
+						"seiadvdfsdev19"
+					],
+					"path": [
+						"pwm-soa",
+						"pwmapi",
+						"v1",
+						"sharepointdocument",
+						"allsharepointdocuments"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "testQuery",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/web/Lists/GetByTitle('Solutions_Documents')/items?$expand=Author0&$select=ID,Author0/Id,Author0/FirstName,Author0/LastName,\nClient_x0020_Website_x0020_Date,Client_x0020_Website_x0020_Description,Solutions_x0020_Audience,FileLeafRef,Document_x0020_Image &$filter=Publish_x0020_to_x0020_Client_x0020_Website eq 'Yes' ",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"web",
+						"Lists",
+						"GetByTitle('Solutions_Documents')",
+						"items"
+					],
+					"query": [
+						{
+							"key": "$expand",
+							"value": "Author0"
+						},
+						{
+							"key": "$select",
+							"value": "ID,Author0/Id,Author0/FirstName,Author0/LastName,\nClient_x0020_Website_x0020_Date,Client_x0020_Website_x0020_Description,Solutions_x0020_Audience,FileLeafRef,Document_x0020_Image "
+						},
+						{
+							"key": "$filter",
+							"value": "Publish_x0020_to_x0020_Client_x0020_Website eq 'Yes' "
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "MultiFilter",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/web/Lists/GetByTitle('Solutions_Documents')/items?$expand=Author0,Solutions_x0020_Topics&$select=ID,Author0/Id,Author0/FirstName,Author0/LastName,Solutions_x0020_Topics/ID,Goal_x0020_Type,Client_x0020_Website_x0020_Date,Client_x0020_Website_x0020_Description,Solutions_x0020_Audience,FileLeafRef,Document_x0020_Image&$filter=Publish_x0020_to_x0020_Client_x0020_Website eq 'Yes' and Solutions_x0020_Audience eq 'Internal - PWM' and Id eq '33167'",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"web",
+						"Lists",
+						"GetByTitle('Solutions_Documents')",
+						"items"
+					],
+					"query": [
+						{
+							"key": "$expand",
+							"value": "Author0,Solutions_x0020_Topics"
+						},
+						{
+							"key": "$select",
+							"value": "ID,Author0/Id,Author0/FirstName,Author0/LastName,Solutions_x0020_Topics/ID,Goal_x0020_Type,Client_x0020_Website_x0020_Date,Client_x0020_Website_x0020_Description,Solutions_x0020_Audience,FileLeafRef,Document_x0020_Image"
+						},
+						{
+							"key": "$filter",
+							"value": "Publish_x0020_to_x0020_Client_x0020_Website eq 'Yes' and Solutions_x0020_Audience eq 'Internal - PWM' and Id eq '33167'"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "DocumentImage",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/web/Lists/GetByTitle('Solutions_Documents')/items?$select=Document_x0020_Image &$filter=Id eq '33328'",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"web",
+						"Lists",
+						"GetByTitle('Solutions_Documents')",
+						"items"
+					],
+					"query": [
+						{
+							"key": "$expand",
+							"value": "Author0,Solutions_x0020_Document_x0020_SubType",
+							"disabled": true
+						},
+						{
+							"key": "$select",
+							"value": "Document_x0020_Image "
+						},
+						{
+							"key": "$filter",
+							"value": "Id eq '33328'"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "SubTopic",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/web/lists/getbytitle('Solutions_SubTopics')/items?$select=id,Topic,Title",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"web",
+						"lists",
+						"getbytitle('Solutions_SubTopics')",
+						"items"
+					],
+					"query": [
+						{
+							"key": "$select",
+							"value": "id,Topic,Title"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "PWM.SharepointDocumentImageById",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "authUserId",
+						"value": "devclient",
+						"type": "text"
+					},
+					{
+						"key": "HouseHoldId",
+						"value": "841732FA-BB2B-4D19-9AE8-2DD6B084A66C",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:5000/pwmapi/v1/sharepointdocument/sharepointdocumentimagebyid?Id=33327",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "5000",
+					"path": [
+						"pwmapi",
+						"v1",
+						"sharepointdocument",
+						"sharepointdocumentimagebyid"
+					],
+					"query": [
+						{
+							"key": "Id",
+							"value": "33327"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Dev19_PWM.SharePointDocumentImageById",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "authUserId",
+						"value": "devclient",
+						"type": "text"
+					},
+					{
+						"key": "HouseHoldId",
+						"value": "841732FA-BB2B-4D19-9AE8-2DD6B084A66C",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"data\": [\r\n        {\r\n            \"docName\": \"zeKFPc+rtUZ/N1U2jQwL0xcV9kWg9j8B+4ZTf21pfgc=\",\r\n            \"clientWebSiteDes\": \"Learn why managing cash flow and liquidity is key to meeting your financial goals.\",\r\n            \"clientWebSiteDate\": \"2022-07-14T04:00:00Z\",\r\n            \"authName\": \"Agatha Kulesza\",\r\n            \"docImgUrl\": \"aHR0cHM6Ly9pbnRyYW5ldGRldi5jdGMuc2VpYy5jb20vc2l0ZXMvV2VhbHRoL2RvY3VtZW50cy9Tb2x1dGlvbnNfRG9jdW1lbnRzX0Fzc2V0cy8xODYwNTMtMjAzNTNfY2FzaEZsb3dHdWlkZS5qcGc=\",\r\n            \"tarAudience\": \"Internal - PWM,External - Client,External - Prospects\",\r\n            \"topic\": \"General Wealth Planning,Investments\",\r\n            \"subTopic\": \"General Wealth Planning,Products\",\r\n            \"title\": \"Cash Flow Guide\",\r\n            \"id\": 33167,\r\n            \"isServiceAvailable\": true,\r\n            \"goalType\": \"Self\"\r\n        },\r\n        {\r\n            \"docName\": \"bB8JG5N+bcKs7KpN3ASGKH+ItycQD+dQSiHSQV6r8eokZnTSpkEDp4YOncDugJuDRBidVXjozQlo8ORKFRX8dQ==\",\r\n            \"clientWebSiteDes\": null,\r\n            \"clientWebSiteDate\": \"2023-03-03T05:00:00Z\",\r\n            \"authName\": \" \",\r\n            \"docImgUrl\": \"aHR0cHM6Ly9pbnRyYW5ldGRldi5jdGMuc2VpYy5jb20vc2l0ZXMvV2VhbHRoL2RvY3VtZW50cy9Tb2x1dGlvbnNfRG9jdW1lbnRzX0Fzc2V0cy8xODYwNTMtMjAzNTNfY2FzaEZsb3dHdWlkZS5qcGc=\",\r\n            \"tarAudience\": \"Internal - PWM\",\r\n            \"topic\": \"Business Development\",\r\n            \"subTopic\": \"COI Process,Sales Process - Client\",\r\n            \"title\": \"Process for Secure Bulk Document Uploads for Prospects\",\r\n            \"id\": 33235,\r\n            \"isServiceAvailable\": true,\r\n            \"goalType\": \"Family\"\r\n        }\r\n    ],\r\n    \"paging\": null,\r\n    \"status\": 200,\r\n    \"message\": null\r\n}"
+				},
+				"url": {
+					"raw": "http://seiadvdfsdev19/pwm-soa/pwmapi/v1/sharepointdocument/sharepointdocumentimagebyid?Id=33327",
+					"protocol": "http",
+					"host": [
+						"seiadvdfsdev19"
+					],
+					"path": [
+						"pwm-soa",
+						"pwmapi",
+						"v1",
+						"sharepointdocument",
+						"sharepointdocumentimagebyid"
+					],
+					"query": [
+						{
+							"key": "Id",
+							"value": "33327"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
