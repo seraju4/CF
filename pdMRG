@@ -1,0 +1,362 @@
+using Newtonsoft.Json;
+using PdfSharp.Pdf;
+using PdfSharp.Pdf.IO;
+using System;
+using System.Collections.Generic;
+using System.Configuration;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace OutLook
+{
+    class Programs
+    {
+       public static void Main(string[] args)
+        {
+            Programs p = new Programs();
+            p.callMeargingDocument();
+        }
+        private void callMeargingDocument()
+        {
+            int DistributionId = 4288;
+            int UserLoggedInUser = 635;
+            List<DocumentDetail> documents = new List<DocumentDetail>();
+            DocumentDetail document = new DocumentDetail();
+            document.DocumentName = "DistributionMain" + "&#@#&" + "Distribution_" + DistributionId + "_" + UserLoggedInUser + ".pdf";
+            document.DocumentTitle = "DistributionMain";
+            documents.Add(document);
+            document = new DocumentDetail();
+            document.DocumentName = "Summary" + "_" + DistributionId + "_" + UserLoggedInUser + ".pdf";
+            document.DocumentTitle = "Summary";
+            documents.Add(document);
+            document = new DocumentDetail();
+            document.DocumentName = "MonetaryMain" + "&#@#&" + "Monetary_" + DistributionId + "_" + UserLoggedInUser + ".pdf";
+            document.DocumentTitle = "MonetaryMain";
+            documents.Add(document);
+            var outDocuments = new List<DocumentDetail>();
+            MeargingDocument(documents , out outDocuments);
+            callSOAEndPoint(outDocuments);
+        }
+
+        private void callSOAEndPoint(List<DocumentDetail> outDocuments)
+        {
+            foreach (var savedfile in outDocuments)
+            {
+                DistributionAPIModel model = new DistributionAPIModel();
+                model.DistributionRequestId = 4288;
+                model.UserId = 635;
+                model.SendFailureEmailFl = false;
+                model.EnvelopID = "84E72979-E8A8-4F75-9D64-7B535EEE5DF2";
+                model.DocumentName = savedfile.DocumentName;
+                model.Attempted_By_Tx = "Outlook Utility";
+                model.File = GetFilesByte(savedfile.FilePath);
+                DistributionAPI("pwmapi/v1/distribution/onbaseapi", model);
+            }
+        }
+
+        private byte[] GetFilesByte(string filePath)
+        {
+            using (var stream = File.Open(filePath, FileMode.Open))
+            {
+                Int32 length = stream.Length > Int32.MaxValue ? Int32.MaxValue : Convert.ToInt32(stream.Length);
+                Byte[] buffer = new Byte[length];
+                stream.Read(buffer, 0, length);
+                return buffer;
+            }
+        }
+        public static void DistributionAPI(string apiUrl, DistributionAPIModel model)
+        {
+            try
+            {
+                string apiHostName = "http://localhost:5000/";
+                using (var client = new HttpClient())
+                {
+                    client.BaseAddress = new Uri(apiHostName);
+                    client.DefaultRequestHeaders.Accept.Clear();
+                    client.DefaultRequestHeaders.Add("authUserId", "devclient");
+                    client.DefaultRequestHeaders.Add("HouseHoldId", "841732FA-BB2B-4D19-9AE8-2DD6B084A66C");
+                    //client.DefaultRequestHeaders.Add("Content-Type", "application/json");
+                    string json = JsonConvert.SerializeObject(model, Formatting.Indented);
+                    var httpContent = new StringContent(json);
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        Content = new StringContent(json, Encoding.UTF8, "application/json")
+                    };
+
+                    httpRequestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                    var httpResponse = client.PostAsync(apiUrl, httpRequestMessage.Content);
+
+                    //var personIds = (JObject)JsonConvert.SerializeObject(PersonIds);
+                    var postTask = client.PostAsync(apiUrl, httpContent);
+                    postTask.Wait();
+                    var response = postTask.Result;
+                    var data = response.Content.ReadAsStringAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+
+
+            }
+
+        }
+
+        private void MeargingDocument(List<DocumentDetail> _documentDetailsList, out List<DocumentDetail> documentDetailsList)
+        {
+            documentDetailsList = _documentDetailsList;
+            string certificatePdfName = _documentDetailsList.Where(x => x.DocumentTitle == "Summary").FirstOrDefault().DocumentName;
+            string certificateFilePath = Path.Combine(Methods.GetConfigValue(Constants.OutlookAttachmentSave) + certificatePdfName);
+            //string certificateFilePath = Path.Combine(@"D:\OutlookAttachment\" + certificatePdfName);
+            PDFSharpIntegration pDFSharpIntegration = new PDFSharpIntegration();
+            foreach (DocumentDetail item in _documentDetailsList)
+            {
+                switch (item.DocumentTitle)
+                {
+                    case "DistributionMain":
+                        string _documentTitle = "Distribution";
+                        string firstPdfName = item.DocumentName;
+                        string pathFile1Pdf = Path.Combine(Methods.GetConfigValue(Constants.OutlookAttachmentSave) + firstPdfName);
+                        //string pathFile1Pdf = Path.Combine(@"D:\OutlookAttachment\" + firstPdfName);
+                        string mergeFileName = firstPdfName.Replace("DistributionMain", _documentTitle);
+                        string mergeFilePath = Path.Combine(Methods.GetConfigValue(Constants.OutlookAttachmentSave) + mergeFileName);
+                        //string mergeFilePath = Path.Combine(@"D:\OutlookAttachment\" + mergeFileName);
+                        //err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - mergeFilePath for DistributionMain = " + mergeFilePath);
+                        List<string> listFiles = new List<string>() { pathFile1Pdf, certificateFilePath };
+
+                        if (pDFSharpIntegration.MeargeTwoPDF(listFiles, mergeFilePath))
+                        {
+                            //err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - Delete the DistributionMain file in file system = " + firstPdfName);
+                            DeletePDfFile(pathFile1Pdf);
+                            item.FilePath = mergeFilePath;
+                            item.DocumentName = mergeFileName;
+
+                            //  _documentDetailsList.Where(x => x.DocumentTitle == "DistributionMain").ToList().ForEach(x => { x.DocumentName = mergeFileName; });
+                        }
+                        else
+                        {
+                            //err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - File as not Merged DistributionMain");
+                        }
+                        
+
+                        break;
+
+                    case "MonetaryMain":
+                        string _monetaryTitle = "Monetary";
+                        string monetaryPdfName = item.DocumentName;
+                        string monetaryFilePdf = Path.Combine(Methods.GetConfigValue(Constants.OutlookAttachmentSave) + monetaryPdfName);
+                        //string monetaryFilePdf = Path.Combine(@"D:\OutlookAttachment\" + monetaryPdfName);
+                        string mergeMonetaryFileName = monetaryPdfName.Replace("MonetaryMain", _monetaryTitle);
+                        string mergeMonetaryFilePath = Path.Combine(Methods.GetConfigValue(Constants.OutlookAttachmentSave) + mergeMonetaryFileName);
+                        //string mergeMonetaryFilePath = Path.Combine(@"D:\OutlookAttachment\" + mergeMonetaryFileName);
+                        //err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - mergeFilePath for MonetaryMain = " + mergeMonetaryFilePath);
+                        listFiles = new List<string>() { monetaryFilePdf, certificateFilePath };
+
+                        if (pDFSharpIntegration.MeargeTwoPDF(listFiles, mergeMonetaryFilePath))
+                        {
+                            //  err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - Delete the MonetaryMain file in file system = " + mergeMonetaryFilePath);
+                            DeletePDfFile(monetaryFilePdf);
+                            item.FilePath = mergeMonetaryFilePath;
+                            item.DocumentName = mergeMonetaryFileName;
+                        }
+                        else
+                        {
+                            //err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - File as not Merged MonetaryMain");
+                        }
+                        break;
+
+                    case "Standing InstructionMain":
+                        string _sITitle = "Standing Instruction";
+                        string SIPdfName = item.DocumentName;
+
+                        string SIFilePdf = Path.Combine(Methods.GetConfigValue(Constants.OutlookAttachmentSave) + SIPdfName);
+                        //string SIFilePdf = Path.Combine(@"D:\OutlookAttachment\" + SIPdfName);
+                        string mergeSIFileName = SIPdfName.Replace("Standing InstructionMain", _sITitle);
+                        string mergeSIFilePath = Path.Combine(Methods.GetConfigValue(Constants.OutlookAttachmentSave) + mergeSIFileName);
+                        //string mergeSIFilePath = Path.Combine(@"D:\OutlookAttachment\" + mergeSIFileName);
+                        //err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - mergeFilePath for S.I. Main = " + mergeSIFilePath);
+                        listFiles = new List<string>() { SIFilePdf, certificateFilePath };
+
+                        if (pDFSharpIntegration.MeargeTwoPDF(listFiles, mergeSIFilePath))
+                        {
+                            // err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - Delete the S.I.Main file in file system = " + mergeSIFilePath);
+                            DeletePDfFile(SIFilePdf);
+                            item.FilePath = mergeSIFilePath;
+                            item.DocumentName = mergeSIFileName;
+                        }
+                        else
+                        {
+                            //err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - File as not Merged S.I.");
+                        }
+                        break;
+
+                    case "Distribution_Request_Raise_CashMain":
+                        string _D2Title = "Distribution_Request_Raise_Cash";
+                        string D2PdfName = item.DocumentName;
+
+                        string D2FilePdf = Path.Combine(Methods.GetConfigValue(Constants.OutlookAttachmentSave) + D2PdfName);
+                        //string D2FilePdf = Path.Combine(@"D:\OutlookAttachment\" + D2PdfName);
+
+                        string mergeD2FileName = D2PdfName.Replace("Distribution_Request_Raise_CashMain", _D2Title);
+                        string mergeD2FilePath = Path.Combine(Methods.GetConfigValue(Constants.OutlookAttachmentSave) + mergeD2FileName);
+                        //string mergeD2FilePath = Path.Combine(@"D:\OutlookAttachment\" + mergeD2FileName);
+
+                        //err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - mergeFilePath for D2 Main = " + mergeD2FilePath);
+
+                        listFiles = new List<string>() { D2FilePdf, certificateFilePath };
+
+                        if (pDFSharpIntegration.MeargeTwoPDF(listFiles, mergeD2FilePath))
+                        {
+                            // err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - Delete the D2 Main file in file system = " + mergeD2FilePath);
+                            DeletePDfFile(D2FilePdf);
+                            item.FilePath = mergeD2FilePath;
+                            item.DocumentName = mergeD2FileName;
+                        }
+                        else
+                        {
+                            // err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - File as not Merged D2");
+                        }
+                        
+                        break;
+                    default:
+                        break;
+                }
+            }
+            // DeletePDfFile(certificateFilePath);
+            _documentDetailsList.Remove(_documentDetailsList.Where(x => x.DocumentTitle == "Summary").FirstOrDefault());
+            //string _documentTitle = "Distribution";
+            //if (_documentDetailsList.Where(x => x.DocumentTitle == "DistributionMain").FirstOrDefault() != null)
+            //{
+            //    string firstPdfName = _documentDetailsList.Where(x => x.DocumentTitle == "DistributionMain").FirstOrDefault().DocumentName;
+            //  //  string secondPdfName = _documentDetailsList.Where(x => x.DocumentTitle == "Summary").FirstOrDefault().DocumentName;
+
+            //    string pathFile1Pdf = Path.Combine(Methods.GetConfigValue(Constants.OutlookAttachmentSave) + firstPdfName);
+            //    //string certificateFilePath = Path.Combine(Methods.GetConfigValue(Constants.OutlookAttachmentSave) + secondPdfName);
+
+            //    string mergeFileName = firstPdfName.Replace("DistributionMain", _documentTitle);
+            //    string mergeFilePath = Path.Combine(Methods.GetConfigValue(Constants.OutlookAttachmentSave) + mergeFileName);
+
+            //    err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - mergeFilePath = " + mergeFilePath);
+
+            //    List<string> listFiles = new List<string>() { pathFile1Pdf, certificateFilePath };
+            //    PDFSharpIntegration pDFSharpIntegration = new PDFSharpIntegration();
+            //    if (pDFSharpIntegration.MeargeTwoPDF(listFiles, mergeFilePath))
+            //    {
+            //        err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - Delete the file in file system = " + firstPdfName);
+            //        DeletePDfFile(pathFile1Pdf);
+            //        DeletePDfFile(certificateFilePath);
+            //        _documentDetailsList.Remove(_documentDetailsList.Where(x => x.DocumentTitle == "Summary").FirstOrDefault());
+            //        _documentDetailsList.Where(x => x.DocumentTitle == "DistributionMain").ToList().ForEach(x => { x.DocumentName = mergeFileName; });
+            //    }
+            //    else
+            //    {
+            //        err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "SaveAttachedFileByEnvelopeId - File as not Merged");
+            //    }
+
+            //}
+        }
+        public void DeletePDfFile(string filePath)
+        {
+            // ErrorLogging err = new ErrorLogging();
+            //err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "DeletePDfFile method is start filePath : " + filePath);
+            try
+            {
+                if (System.IO.File.Exists(filePath))
+                {
+                    System.IO.File.Delete(filePath);
+                }
+                //err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "ESign - DeletePDfFile method is End ,Succesfully delete file");
+            }
+            catch (Exception ex)
+            {
+                //err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), ex + "Error in deleteing ESign file");
+
+            }
+
+        }
+        public class DistributionAPIModel
+        {
+
+            public int UserId { get; set; }
+            public int DistributionRequestId { get; set; }
+            public string EnvelopID { get; set; }
+            public string DocumentName { get; set; }
+            public bool SendFailureEmailFl { get; set; }
+            public string Attempted_By_Tx { get; set; }
+
+            public byte[] File { get; set; }
+
+        }
+    }
+    public class PDFSharpIntegration
+    {
+        public bool MeargeTwoPDF(List<string> pdfFiles, string meargeFilePath)
+        {
+            // ErrorLogging err = new ErrorLogging();
+            try
+            {
+
+                // err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "MeargeTwoPDF in PDFSharpIntegration- Initiated the process to Mearge two file.");
+
+                //#region Assembly PdfSharp, Version=1.50.5147.0, Culture=neutral, PublicKeyToken=f94615aa0424f9eb
+                //// C:\Project\API_Client\OutLook\bin\Debug\PdfSharp.dll
+                ///namespace PdfSharp.Pdf
+                //#endregion
+                using (PdfDocument targetDoc = new PdfDocument())
+                {
+                    foreach (string pdf in pdfFiles)
+                    {
+                        using (PdfDocument pdfDoc = PdfReader.Open(pdf, PdfDocumentOpenMode.Import))
+                        {
+                            for (int i = 0; i < pdfDoc.PageCount; i++)
+                            {
+                                targetDoc.AddPage(pdfDoc.Pages[i]);
+                            }
+                        }
+                    }
+                    targetDoc.Save(meargeFilePath);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                //err.ErrorLog(Methods.GetConfigValue(Constants.OutlookAttachmentSave), "MeargeTwoPDF -Method" + ex.Message);
+
+                return false;
+            }
+        }
+    }
+    public static class Methods
+    {
+        public static string GetConfigValue(string ConfigKey)
+        {
+            try
+            {
+                string configValue = string.Empty;
+                configValue = Convert.ToString(ConfigurationManager.AppSettings[ConfigKey]);
+                return configValue;
+            }
+            catch
+            {
+
+                return ConfigKey = string.Empty;
+            }
+        }
+
+    }
+    public static class Constants
+    {
+        public const string OutlookAttachmentSave = "OutlookAttachmentSave";
+    }
+    public class DocumentDetail
+    {
+        public string DocumentTitle { get; set; } //"E.g Distribution,Standing Instrucation,Montery"
+        public string DocumentName { get; set; } // "D1.pdf, SI.pdf,Montery.docx"
+        public string FilePath { get; set; }
+
+    }
+}
