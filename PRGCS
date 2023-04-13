@@ -1,0 +1,458 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json.Serialization;
+using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using RestSharp;
+using System.Configuration;
+using PdfSharp.Pdf;
+using PdfSharp.Pdf.IO;
+using System.Data.SqlClient;
+using System.Data;
+using System.Data.SqlTypes;
+
+namespace API_Client
+{
+    class Program
+    {
+        private static IConfigurationBuilder config = new ConfigurationBuilder();
+        public byte[] byteFile { get; set; }
+        Stream OpenReadStream { get; set; }
+        static void Main(string[] args)
+        {
+            Program p = new Program();
+            // p.callMeargingDocument();
+            // p.CreateFolder();
+            //UpdateShareDoc();
+            //
+            //config = GetConigurationBuilder();
+            var token = GetOAuthToken(config);
+            //for (int i = 0; i < 5; i++)
+            //{
+            //    BAAEndPoint("api/BAAAPI/GetBAAAccountsByPersonIds", "token", new List<string> { "829407" });
+            //}
+
+
+            ///fill byte with file
+            string filePath = "D:\\Envelope\\DistributionMain&#@#&Distribution_4406_21.pdf";
+            using (var stream = File.Open(filePath, FileMode.Open))
+            {
+                p.OpenReadStream = stream;
+                p.byteFile = p.ToByteArray(stream);
+            }
+
+
+            //Fill byte with Binary
+
+            //p.byteFile = p.ConvertToByteArray(hex);
+
+            // p.byteFile = p.GetBytes();
+            // SaveByteArrayToFileWithBinaryWriter(p.byteFile, "D:\\Envelope\\test.pdf");
+            //byte[] fileData = (byte[]) hex;
+            //using (FileStream fs = new FileStream(ToSaveFileTo, FileMode.Create, FileAccess.ReadWrite))
+            //{
+            //    using (System.IO.BinaryWriter bw = new System.IO.BinaryWriter(fs))
+            //    {
+            //        bw.Write(fileData);
+            //        bw.Close();
+            //    }
+            //}
+
+            var model = new OnBaseRequestVM
+            {
+                DistributionRequestId = 3204,
+                UserId = 635,
+                EnvelopID = "a89587e0-3f0d-4e0f-8bc7-b846c114b0c3",
+                DocumentName = "Distribution&#@#&Distribution_4406_21.pdf",
+                SendFailureEmailFl = false,
+                Attempted_By_Tx = "Outlook Utility",
+                File = p.byteFile,
+                FileStream = p.OpenReadStream
+            };
+
+            var modelSSIS = new OnBaseSSISRequestVM
+            {
+                DistributionRequestId = 3204,
+                UserId = 635,
+                EnvelopID = "a89587e0-3f0d-4e0f-8bc7-b846c114b0c3",
+                DocumentName = "Distribution&#@#&Distribution_4406_21.pdf",
+                SendFailureEmailFl = false,
+                Attempted_By_Tx = "SSIS",
+               // File = p.byteFile,
+            };
+            ////fail request testing for SSIS packeg
+            //var data = p.GetFailRequest();
+
+            //foreach (var item in data)
+            //{
+            //    //string base64String = Convert.ToBase64String(item.File);
+            //    //onbaseLocal("pwmapi/v1/distribution/onbaseapi", "", item);
+            //    var token = GetOAuthToken(config);
+            //    onbaseLocal("pwmapi/v1/distribution/onbaseapi", token, item);
+            //}
+
+
+            // onbaseLocal("pwmapi/v1/distribution/onbasessisapi", "", modelSSIS);
+            //onbaseServer("pwm-soa-qa/pwmapi/v1/distribution/onbasessisapi", "", modelSSIS);
+            //onbaseServer("pwmapi/v1/distribution/onbaseapi", "", model);
+
+
+            //p.UploadFile(model.File);
+            //multipart test
+            // MultiPart("pwmapi/v1/distribution/onbaseapi", model);
+            //for (int i = 0; i < 5; i++)
+            //{
+            //    MultiPart("/pwm-soa-qa/pwmapi/v1/distribution/onbaseapi", model);
+            //}
+            //config = GetConigurationBuilder();
+            //var token1 = GetOAuthToken(config);
+            MultiPart("/pwmapi/v1/distribution/onbaseapi", model, "");
+        }
+        private static void MultiPart(string apiUrl, OnBaseRequestVM model,string token)
+        {
+             string apiHostName = "http://localhost:5000/";
+            // string apiHostName = "http://seiadvdfsdev19";
+            //string apiHostName = "https://imsdev.api.seic.com";
+            using (var client = new HttpClient())
+            {
+                client.BaseAddress = new Uri(apiHostName);
+                client.DefaultRequestHeaders.Accept.Clear();
+                client.DefaultRequestHeaders.Add("authUserId", "devclient");
+                client.DefaultRequestHeaders.Add("HouseHoldId", "841732FA-BB2B-4D19-9AE8-2DD6B084A66C");
+                if (!string.IsNullOrEmpty(token))
+                {
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                }
+              
+
+                var formContent = new MultipartFormDataContent
+                {
+                    {new StringContent(model.SendFailureEmailFl.ToString()), "SendFailureEmailFl"},
+                    {new StringContent(model.Attempted_By_Tx), "Attempted_By_Tx"},
+                    {new StringContent(model.DistributionRequestId.ToString()),"DistributionRequestId"},
+                    {new StringContent(model.UserId.ToString()),"UserId" },
+                    {new StringContent(model.EnvelopID),"EnvelopID"},
+                    {new StringContent(model.DocumentName),"DocumentName" },
+                    {new StreamContent(new MemoryStream(model.File)),"File",model.DocumentName},
+                };
+
+                var httpResponse = client.PostAsync(apiUrl, formContent);
+
+                httpResponse.Wait();
+                var response = httpResponse.Result;
+                var data = response.Content.ReadAsStringAsync();
+            }
+            
+        }
+
+
+        private List<OnBaseRequestVM> GetFailRequest()
+        {
+            List<OnBaseRequestVM> failRequests = new List<OnBaseRequestVM>();
+            string connectString = "Data Source=CTCSQL2K17.ctc.seic.com;Initial Catalog=WealthGLDB_DEV;User ID=svcDFSdevusr;Password=M@candCheese!;MultipleActiveResultSets=True;";
+            //SqlCommand cmd = new SqlCommand("select document_tx from [WealthGL].[Distribution_Request_Onbase_Log] where distribution_Request_Onbase_Log_Id=10881", conn);
+            using (SqlConnection connection = new SqlConnection(connectString))
+            {
+                using (SqlCommand cmd = connection.CreateCommand())
+                {
+                    //cmd.CommandText = "select document_tx,[Distribution_Request_Id],[Account_Num],[UserId],[Doc_Envelop_Id],[Document_Nm],[Attempted_By_Tx] from [WealthGL].[Distribution_Request_Onbase_Log] where [Success_Status_Cd] = 'FAILURE'";
+                    cmd.CommandText = "select document_tx,[Distribution_Request_Id],[Account_Num],[UserId],[Doc_Envelop_Id],[Document_Nm],[Attempted_By_Tx] from [WealthGL].[Distribution_Request_Onbase_Log] where Distribution_Request_Onbase_Log_Id= 10958";
+                    cmd.CommandType = CommandType.Text;
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var model = new OnBaseRequestVM
+                            {
+                                DistributionRequestId = Convert.ToInt32(reader["Distribution_Request_Id"]),
+                                UserId = Convert.ToInt32(reader["UserId"]),
+                                EnvelopID = reader["Doc_Envelop_Id"].ToString(),
+                                DocumentName = reader["Document_Nm"].ToString(),
+                                SendFailureEmailFl = false,
+                                Attempted_By_Tx = reader["Attempted_By_Tx"].ToString(),
+                                File = reader["document_tx"] as byte[],
+                            };
+                            failRequests.Add(model);
+                        }
+                    }
+                }
+            }
+            return failRequests;
+        }
+
+        public static void SaveByteArrayToFileWithBinaryWriter(byte[] data, string filePath)
+        {
+            using var writer = new BinaryWriter(File.OpenWrite(filePath));
+            writer.Write(data);
+        }
+        private byte[] ConvertToByteArray(string hex)
+        {
+            List<byte> byteList = new List<byte>();
+
+            string hexPart = hex.Substring(2);
+            for (int i = 0; i < hexPart.Length / 2; i++)
+            {
+                string hexNumber = hexPart.Substring(i * 2, 2);
+                byteList.Add((byte)Convert.ToInt32(hexNumber, 16));
+            }
+
+            byte[] original = byteList.ToArray();
+            return original;
+        }
+        public void  UploadFile(byte [] image)
+        {
+            string endpointUrl = "https://intranetdev.ctc.seic.com/sites/Wealth/documents" + String.Format(
+               "/_api/web/GetFolderByServerRelativeUrl('{0}')/Files/Add(url='{1}', overwrite=true)",
+               "/sites/Wealth/documents/",
+               "a.pdf");
+
+            HttpClientHandler httpHandler = new HttpClientHandler();
+            httpHandler.CookieContainer = new CookieContainer(); 
+
+            HttpClient client = new HttpClient(httpHandler);
+            client.DefaultRequestHeaders.Add("X-RequestDigest", "DigestValue");
+
+            try
+            {
+                ByteArrayContent imageBytes = new ByteArrayContent(image);
+                var postTask =  client.PostAsync(endpointUrl, imageBytes);
+                postTask.Wait();
+                var response = postTask.Result;
+                var data = response.Content.ReadAsStringAsync();
+            }
+            catch (Exception ex)
+            {
+                //return ex.ToString();
+            }
+        }
+        public  Byte[] ToByteArray(Stream stream)
+        {
+            Int32 length = stream.Length > Int32.MaxValue ? Int32.MaxValue : Convert.ToInt32(stream.Length);
+            Byte[] buffer = new Byte[length];
+            stream.Read(buffer, 0, length);
+            return buffer;
+        }
+        public static string GetOAuthToken(IConfigurationBuilder config)
+        {
+            string token = string.Empty;
+            try
+            {
+                byte[] authData = Encoding.UTF8.GetBytes(GetAppSettingValue("AuthStting:User", config) + ":" + GetAppSettingValue("AuthStting:Password", config));
+                string basicAuth = Convert.ToBase64String(authData);
+                string url = GetAppSettingValue("AuthStting:Url", config);
+                using (var client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", basicAuth);
+                    var content = new FormUrlEncodedContent(new[]
+                    {
+                        new KeyValuePair<string, string>("grant_type", "password"),
+                        new KeyValuePair<string, string>("username", "purna"),
+                        new KeyValuePair<string, string>("password", "Password1"),
+                        new KeyValuePair<string, string>("content-type", "application/x-www-form-urlencoded"),
+                        new KeyValuePair<string, string>("Authorization", "Basic "+basicAuth),
+                        new KeyValuePair<string, string>("AppKey", "XjbRTzPUBGoaGeX0SPFp1SDPPbXKnM9w"),
+                    });
+                    var postTask = client.PostAsync(url, content);
+                    postTask.Wait();
+                    var response = postTask.Result;
+                    var data = response.Content.ReadAsStringAsync();
+                    var jsondata = (JObject)JsonConvert.DeserializeObject(data.Result);
+                    token = jsondata["access_token"].Value<string>();
+                }
+
+            }
+            catch (Exception ex)
+            {
+                //throw ex;
+            }
+            return token;
+        }
+        //public async Task<APIGEEToken> OuthTokeAsync()
+        //{
+
+        //    using (var client = new HttpClient())
+        //    {
+        //        client.BaseAddress = new Uri(OuthTokenAPi);
+        //        var values = new List<KeyValuePair<string, string>>();
+        //        values.Add(new KeyValuePair<string, string>("grant_type", grandType));
+        //        values.Add(new KeyValuePair<string, string>("username", apigeeUserName));
+        //        values.Add(new KeyValuePair<string, string>("password", apigeePassword));
+        //        var content = new FormUrlEncodedContent(values);
+        //        var authenticationString = string.Format("{0}:{1}", apigeeAPIKEY, apigeeAPIPassword);// "XjbRTzPUBGoaGeX0SPFp1SDPPbXKnM9w:SpJMae10t4rJ0qMA";
+        //        var base64EncodedAuthenticationString = Convert.ToBase64String(System.Text.ASCIIEncoding.ASCII.GetBytes(authenticationString));
+        //        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", base64EncodedAuthenticationString);
+        //        client.DefaultRequestHeaders.Add("AppKey", apigeeAPIKEY);
+        //        HttpResponseMessage response = await client.PostAsync("oauthtoken", content);
+        //        if (response.IsSuccessStatusCode)
+        //        {
+        //            string responseBody = response.Content.ReadAsStringAsync().Result;
+        //            APIGEEToken aPIGEEToken = JsonConvert.DeserializeObject<APIGEEToken>(responseBody);
+        //            return aPIGEEToken;
+        //        }
+        //        else
+        //        {
+        //            return new APIGEEToken();
+        //        }
+        //    }
+        //}
+
+        private static IConfigurationBuilder GetConigurationBuilder()
+        {
+            return new ConfigurationBuilder()
+                     .AddJsonFile($"appsettings.json", true, true);
+        }
+        private static string GetAppSettingValue(string key, IConfigurationBuilder builder)
+        {
+            var config = builder.Build();
+            return config[key];
+        }
+
+        public static void BAAEndPoint(string apiUrl, string token, List<string> PersonIds)
+        {
+
+            try
+            {
+                string apiHostName = "http://localhost:53786/";
+
+
+                using (var client = new HttpClient())
+                {
+                    client.BaseAddress = new Uri(apiHostName);
+                    client.DefaultRequestHeaders.Accept.Clear();
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "V2VhbHRoU1ZDOk1AY2FuZENoZWVzZSE=");
+                    //client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    string json = JsonConvert.SerializeObject(PersonIds, Formatting.Indented);
+                    var httpContent = new StringContent(json);
+
+                    //var personIds = (JObject)JsonConvert.SerializeObject(PersonIds);
+                    var postTask = client.PostAsync(apiUrl, httpContent);
+                    postTask.Wait();
+                    var response = postTask.Result;
+                    var data = response.Content.ReadAsStringAsync();
+
+
+                }
+            }
+            catch (Exception ex)
+            {
+
+
+            }
+        }
+        public static void onbaseLocal(string apiUrl, string token, OnBaseSSISRequestVM model)
+        {
+            try
+            {
+                string apiHostName = "http://localhost:5000/";
+                //string apiHostName = "https://imsdev.api.seic.com/";
+                using (var client = new HttpClient())
+                {
+                    client.BaseAddress = new Uri(apiHostName);
+                    client.DefaultRequestHeaders.Accept.Clear();
+                    client.DefaultRequestHeaders.Add("authUserId", "devclient");
+                    client.DefaultRequestHeaders.Add("HouseHoldId", "841732FA-BB2B-4D19-9AE8-2DD6B084A66C");
+                    //client.DefaultRequestHeaders.Add("Content-Type", "application/json");
+                   // string json = JsonConvert.SerializeObject(model, Formatting.Indented);
+                    string json = JsonConvert.SerializeObject(model);
+                    //var httpContent = new StringContent(json);
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        Content = new StringContent(json, Encoding.UTF8, "application/json")
+                    };
+
+                    httpRequestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                    var httpResponse = client.PostAsync(apiUrl, httpRequestMessage.Content);
+
+                    //var personIds = (JObject)JsonConvert.SerializeObject(PersonIds);
+                    // var postTask = client.PostAsync(apiUrl, httpContent);
+                    httpResponse.Wait();
+                    var response = httpResponse.Result;
+                    var data = response.Content.ReadAsStringAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+
+
+            }
+
+        }
+        public static void onbaseServer(string apiUrl, string token, OnBaseSSISRequestVM model)
+        {
+
+            try
+            {
+                string apiHostName = "http://seiadvdfsdev19/";
+                //string apiHostName = "https://imsdev.api.seic.com/";
+
+                using (var client = new HttpClient())
+                {
+
+                    client.BaseAddress = new Uri(apiHostName);
+                    client.DefaultRequestHeaders.Accept.Clear();
+                    //client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "V2VhbHRoU1ZDOk1AY2FuZENoZWVzZSE=");
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    //client.DefaultRequestHeaders.Add("authUserId", "devclient");
+                   // client.DefaultRequestHeaders.Add("HouseHoldId", "841732FA-BB2B-4D19-9AE8-2DD6B084A66C");
+                     //client.DefaultRequestHeaders.Add("Content-Type", "application/json");
+                    string json = JsonConvert.SerializeObject(model, Formatting.Indented);
+                    var httpContent = new StringContent(json);
+                    
+                    var httpRequestMessage = new HttpRequestMessage
+                    {
+                        Content = new StringContent(json, Encoding.UTF8, "application/json")
+                    };
+
+                    httpRequestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    var httpResponse = client.PostAsync(apiUrl, httpRequestMessage.Content);
+                    httpResponse.Wait();
+                    var response = httpResponse.Result;
+                    var data = response.Content.ReadAsStringAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+
+
+            }
+
+        }
+
+    }
+
+    public class OnBaseRequestVM
+    {
+        public int UserId { get; set; }
+        public int DistributionRequestId { get; set; }
+        public string EnvelopID { get; set; }
+        public string DocumentName { get; set; }
+        public bool SendFailureEmailFl { get; set; }
+        public string Attempted_By_Tx { get; set; }
+        public byte[] File { get; set; }
+        public Stream FileStream { get; set; }
+
+
+    }
+    public class OnBaseSSISRequestVM
+    {
+        public int UserId { get; set; }
+        public int DistributionRequestId { get; set; }
+        public string EnvelopID { get; set; }
+        public string DocumentName { get; set; }
+        public bool SendFailureEmailFl { get; set; }
+        public string Attempted_By_Tx { get; set; }
+        public byte[] File { get; set; }
+
+
+    }
+
+}
