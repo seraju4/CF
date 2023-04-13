@@ -1,0 +1,672 @@
+{
+	"info": {
+		"_postman_id": "78a86437-bc08-4731-a801-60090349c100",
+		"name": "SharePointRestAPI Copy",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "GetFileFromDocumentLibrary",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/web/GetFileByServerRelativeUrl('/sites/Wealth/documents/Solutions_Documents/Cash Flow Guide.pdf')/$value",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"web",
+						"GetFileByServerRelativeUrl('",
+						"sites",
+						"Wealth",
+						"documents",
+						"Solutions_Documents",
+						"Cash Flow Guide.pdf')",
+						"$value"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetListItem",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/web/lists/getbytitle('Household_Info')/items?$filter=(CRM_ID eq '88be870a-b150-4eca-a13b-0a11f2cd8bfd')",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"web",
+						"lists",
+						"getbytitle('Household_Info')",
+						"items"
+					],
+					"query": [
+						{
+							"key": "$filter",
+							"value": "(CRM_ID eq '88be870a-b150-4eca-a13b-0a11f2cd8bfd')"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "RequestDigist",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json ;odata=verbose",
+						"type": "default"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/contextinfo",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"contextinfo"
+					],
+					"query": [
+						{
+							"key": "",
+							"value": null,
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "UploadFileSharePoint",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "0xB446ECD480C07B2FD61831CFA2F4049AA2B1C6DF8AA743075B1606CBA0FF2C6FCBACC1727C995C90E2F1546C2BD3F7F6B432C48A953BC57C21F3933D09C55CF3,26 Dec 2022 14:57:25 -0000",
+						"type": "default"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/pdf",
+						"type": "default"
+					},
+					{
+						"key": "Content-Length",
+						"value": "123132213",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-HTTP-Method",
+						"value": "MERGE",
+						"type": "default",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "file",
+					"file": {
+						"src": "/D:/Envelope/a.pdf"
+					}
+				},
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/web/GetFolderByServerRelativeUrl('/sites/Wealth/documents/Shared Documents/')/Files/Add(url='2022.11.22(20.35.22)-CarlGuarino2004GRATFBOKGuarino-4121361.pdf', overwrite=true)",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"web",
+						"GetFolderByServerRelativeUrl('",
+						"sites",
+						"Wealth",
+						"documents",
+						"Shared Documents",
+						"')",
+						"Files",
+						"Add(url='2022.11.22(20.35.22)-CarlGuarino2004GRATFBOKGuarino-4121361.pdf', overwrite=true)"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get ALL Lists",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "0x9617DDEFA62C36A894B6AC23BA7EF3DC010002A9C9CBAFD3B3775DEE84DD4C049377664C7C49BA33BD4E3235A480CCC495E02D6CF88A3320DE0AD4DF5CF5A860,23 Dec 2022 11:44:27 -0000",
+						"type": "default"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					},
+					{
+						"key": "IF-MATCH",
+						"value": "*",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-HTTP-Method",
+						"value": "PATCH",
+						"type": "default",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents//_api/web/contenttypes(contenttype)/fields",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"",
+						"_api",
+						"web",
+						"contenttypes(contenttype)",
+						"fields"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Find ContentType",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "0x9617DDEFA62C36A894B6AC23BA7EF3DC010002A9C9CBAFD3B3775DEE84DD4C049377664C7C49BA33BD4E3235A480CCC495E02D6CF88A3320DE0AD4DF5CF5A860,23 Dec 2022 11:44:27 -0000",
+						"type": "default"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					},
+					{
+						"key": "IF-MATCH",
+						"value": "*",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-HTTP-Method",
+						"value": "PATCH",
+						"type": "default",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/web/AvailableContentTypes?$select=Name,Id,StringId&$filter=Name eq 'SPTC Requests'",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"web",
+						"AvailableContentTypes"
+					],
+					"query": [
+						{
+							"key": "$select",
+							"value": "Name,Id,StringId"
+						},
+						{
+							"key": "$filter",
+							"value": "Name eq 'SPTC Requests'"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "UpdateSPDocumentLibraryField",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "0x289053286D57D1FF112A40644D5FD17A3C13ACC0E160F444A534CA322674F43EC34ECF1F3AABFC0A540A57BF8DCE4D060E934358BDC7AC75713FF4D828A9E9C5,25 Dec 2022 09:03:26 -0000",
+						"type": "default"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					},
+					{
+						"key": "IF-MATCH",
+						"value": "*",
+						"type": "default"
+					},
+					{
+						"key": "X-HTTP-Method",
+						"value": "PATCH",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{ \r\n    '__metadata': {\r\n     'type': 'SP.Data.Shared_x0020_DocumentsItem'\r\n        },\r\n     'Title': 'Distribution',\r\n     'Account_No_New':'412136',\r\n     'Form':'Distribution',\r\n     'HouseHoldNameId': 1113,\r\n      'ContentTypeId': '0x010100BD8B966E710D1843B8B6A51EC69D084C',     \r\n      'Processing_x0020_type':'Form',\r\n      'Date_CD_Parent':'12/20/2021'\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/Web/GetFileByServerRelativeUrl('/sites/Wealth/documents/Shared%20Documents/file.pdf')/ListItemAllFields",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"Web",
+						"GetFileByServerRelativeUrl('",
+						"sites",
+						"Wealth",
+						"documents",
+						"Shared%20Documents",
+						"file.pdf')",
+						"ListItemAllFields"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetSPDocumentListItem",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/sites/Wealth/documents/_api/Web/GetFileByServerRelativeUrl('/sites/Wealth/documents/Shared%20Documents/file.pdf')/ListItemAllFields",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"sites",
+						"Wealth",
+						"documents",
+						"_api",
+						"Web",
+						"GetFileByServerRelativeUrl('",
+						"sites",
+						"Wealth",
+						"documents",
+						"Shared%20Documents",
+						"file.pdf')",
+						"ListItemAllFields"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "ContentTypeQuery",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "CtA8s?rA",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "SEI-Domain-1\\SEISVCWEALTHSPOINT_D",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+						"type": "default",
+						"disabled": true
+					},
+					{
+						"key": "X-RequestDigest",
+						"value": "0x8978F04971220B61C0FFDC5BFBC2D9D23F27934AE7F3C8B8E89080D57A513BF447F7859AA53976C6848EF759FCEB2848ED8931207BF606FA9B034743222D56ED,26 Dec 2022 11:48:57 -0000",
+						"type": "default"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json; odata=verbose",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://intranetdev.ctc.seic.com/Items(35235)/ContentType?Accept=application/json; odata=verbose",
+					"protocol": "https",
+					"host": [
+						"intranetdev",
+						"ctc",
+						"seic",
+						"com"
+					],
+					"path": [
+						"Items(35235)",
+						"ContentType"
+					],
+					"query": [
+						{
+							"key": "Authorization",
+							"value": "Basic U0VJU1ZDV0VBTFRIU1BPSU5UX0Q6Q3RBOHM/ckE=",
+							"disabled": true
+						},
+						{
+							"key": "X-RequestDigest",
+							"value": "",
+							"disabled": true
+						},
+						{
+							"key": "Accept",
+							"value": "application/json; odata=verbose"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
