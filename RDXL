@@ -1,0 +1,2133 @@
+using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Client;
+using Microsoft.Xrm.Sdk.Query;
+using ReadExcel.Models;
+using System;
+using System.Collections.Generic;
+using System.Configuration;
+using System.Data;
+using System.Data.OleDb;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
+using System.ServiceModel.Description;
+
+namespace DiscoveryBoardReadExcel
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            //Console.WriteLine(System.DateTime.Now);
+            //Console.WriteLine(System.DateTime.UtcNow);
+            //Console.ReadLine();
+            string filePath = ConfigurationManager.AppSettings["DBoardDetails"];
+            using (TextWriter tw = new StreamWriter(filePath))
+            {
+                try
+                {
+                    Console.WriteLine("Console is started on : {0}", System.DateTime.Now);
+                    tw.WriteLine("Console is started on : {0}", System.DateTime.Now);
+                    //DiscoveryCard();
+                    var wwhData = DiscoverBoard_WWH(tw);
+                    DiscoveryBoard_DiscoveryBoardDetails(wwhData, tw);
+                    tw.WriteLine("Console is Execute on : {0}", System.DateTime.Now);
+                    Console.WriteLine("Console is Execute on : {0}", System.DateTime.Now);
+                }
+                catch (Exception)
+                {
+
+                }
+            }
+        }
+        /// <summary>
+        /// Create master records for Discovery Card  
+        /// </summary>
+        /// <returns></returns>
+        private static List<MasterCardModel> DiscoveryCard()
+        {
+            List<MasterCardModel> masterCardModel = new List<MasterCardModel>();
+            string filePath = ConfigurationManager.AppSettings["DCardLogPath"];
+            using (TextWriter tm = new StreamWriter(filePath))
+            {
+                try
+                {
+                    string conString = string.Format(@"Provider=Microsoft.Jet.OLEDB.4.0;Data Source={0};Extended Properties='Excel 8.0;HDR=YES'", ConfigurationManager.AppSettings["DCardExcelPath"]);
+                    DataTable dtExcelData = new DataTable();
+                    using (OleDbConnection excel_con = new OleDbConnection(conString))
+                    {
+                        excel_con.Open();
+                        using (OleDbDataAdapter oda = new OleDbDataAdapter("SELECT * FROM [" + ConfigurationManager.AppSettings["DCardSheetName"] + "]", excel_con))
+                        {
+                            oda.Fill(dtExcelData);
+                        }
+                        excel_con.Close();
+                    }
+                    for (int i = 0; i < dtExcelData.Rows.Count; i++)
+                    {
+                        MasterCardModel model = new MasterCardModel();
+                        model.Status = dtExcelData.Rows[i]["Status"].ToString() == "Active" ? 0 : 1;
+                        if (dtExcelData.Rows[i]["Group"].ToString() == "Self")
+                        {
+                            model.Group = 1;
+                        }
+                        else if (dtExcelData.Rows[i]["Group"].ToString() == "Family")
+                        {
+                            model.Group = 2;
+                        }
+                        else if (dtExcelData.Rows[i]["Group"].ToString() == "Community")
+                        {
+                            model.Group = 3;
+                        }
+                        else if (dtExcelData.Rows[i]["Group"].ToString() == "Custom")
+                        {
+                            model.Group = 1000000;
+                        }
+                        model.CardText = dtExcelData.Rows[i]["Card Text"].ToString();
+                        var Hnw = Convert.ToBoolean(dtExcelData.Rows[i]["HNW"].ToString().ToLower());
+                        var Uhnw = Convert.ToBoolean(dtExcelData.Rows[i]["UHNW"].ToString().ToLower());
+                        var Custom = Convert.ToBoolean(dtExcelData.Rows[i]["CUSTOM"].ToString().ToLower());
+
+                        if (Hnw && Uhnw && !Custom)
+                        {
+                            model.CardType = 3;
+                        }
+                        else if (Hnw && !Uhnw && !Custom)
+                        {
+                            model.CardType = 1;
+                        }
+                        else if (Uhnw && !Hnw && !Custom)
+                        {
+                            model.CardType = 2;
+                        }
+                        else if (Custom && !Hnw && !Uhnw)
+                        {
+                            model.CardType = 1000000;
+                        }
+                        if (!string.IsNullOrEmpty(dtExcelData.Rows[i]["UHNW Sort Order"].ToString()))
+                        {
+                            model.UhnwSortOrder = Convert.ToInt32(dtExcelData.Rows[i]["UHNW Sort Order"].ToString());
+                        }
+                        if (!string.IsNullOrEmpty(dtExcelData.Rows[i]["HNW Sort Order"].ToString()))
+                        {
+                            model.HnwSortOrder = Convert.ToInt32(dtExcelData.Rows[i]["HNW Sort Order"].ToString());
+                        }
+                        model.HouseHoldName = dtExcelData.Rows[i]["Household Name"].ToString();
+                        masterCardModel.Add(model);
+
+                    }
+                    //Use discoveryBoardModels to save data in DB table 
+                    var service = GetCrmOrganizationService();
+                    string householdsCard = @"  
+                    <fetch>  
+                    <entity name='account'>   
+                     <attribute name='accountid'/>   
+                     <attribute name='name'/>
+                     <order descending='false' attribute='name'/>               
+                    </entity>   
+                    </fetch>";
+                    EntityCollection result = service.RetrieveMultiple(new FetchExpression(householdsCard));
+                    tm.WriteLine("******************************************");
+                    tm.WriteLine("Discovery Card Record creation is started at : {0}", System.DateTime.Now);
+                    Console.WriteLine("******************************************");
+                    Console.WriteLine("Discovery Card Record creation is started at : {0}", System.DateTime.Now);
+                    int cardCount = 1;
+                    foreach (var item in masterCardModel)
+                    {
+                        if (item.HouseHoldName != null && !string.IsNullOrEmpty(item.HouseHoldName))
+                        {
+                            var HouseholdId = result.Entities.Where(i => i.Attributes.Values.Contains(item.HouseHoldName)).ToList().FirstOrDefault().GetAttributeValue<Guid>("accountid");
+                            item.HouseholdCRMID = HouseholdId;
+                        }
+                        Entity discoveryCard = new Entity("new_discoverycard");
+                        if (item.HouseholdCRMID.HasValue)
+                        {
+                            discoveryCard.Attributes["new_household"] = new EntityReference("account", (Guid)item.HouseholdCRMID);
+                        }
+                        discoveryCard.Attributes["new_group"] = new OptionSetValue((int)item.Group);
+                        discoveryCard.Attributes["new_hnwsortorder"] = item.HnwSortOrder;
+                        discoveryCard.Attributes["new_uhnwsortorder"] = item.UhnwSortOrder;
+                        discoveryCard.Attributes["new_type"] = new OptionSetValue((int)item.CardType);
+                        discoveryCard.Attributes["new_cardtext"] = item.CardText;
+                        discoveryCard.Attributes["statecode"] = item.Status;
+                        discoveryCard.Attributes["new_id"] = cardCount;
+                        Guid Id = service.Create(discoveryCard);
+                        item.MasterCardID = Id;
+                        cardCount++;
+                        tm.WriteLine("------------------------------------------");
+                        tm.WriteLine("Discovery Card record is created for the card : {0} and corresponding Household is : {1}", item.CardText, item.HouseHoldName);
+                        Console.WriteLine("------------------------------------------");
+                        Console.WriteLine("Discovery Card record is created for the card : {0} and corresponding Household is : {1}", item.CardText, item.HouseHoldName);
+                    }
+                    tm.WriteLine("Total number of Cards created : {0}", cardCount - 1);
+                    Console.WriteLine("Total number of Cards created : {0}", cardCount - 1);
+                    tm.WriteLine("******************************************");
+                    tm.WriteLine("Discovery Card Record creation completed at : {0}", System.DateTime.Now);
+                    Console.WriteLine("******************************************");
+                    Console.WriteLine("Discovery Card Record creation completed at : {0}", System.DateTime.Now);
+
+                }
+                catch (Exception ex)
+                {
+                    tm.WriteLine("Exception on DiscoveryCard Message: {0} , Inner Exception : {1} , Stack Trace: {2} ", ex.Message, ex.InnerException, ex.StackTrace);
+                }
+            }
+            return masterCardModel;
+        }
+        /// <summary>
+        /// Extract Execl to fetch Discovery Board Entity & Discover Board Details data
+        /// </summary>
+        /// <param name="wwhData"></param>
+        private static void DiscoveryBoard_DiscoveryBoardDetails(List<WWHHeaderModel> wwhData, TextWriter tw)
+        {
+            try
+            {
+                string conString = string.Format(@"Provider=Microsoft.Jet.OLEDB.4.0;Data Source={0};Extended Properties='Excel 8.0;HDR=YES'", ConfigurationManager.AppSettings["ExcelPath"]);
+                DataTable dtExcelData = new DataTable();
+                List<DiscoveryBoardModel> discoveryBoardModels = new List<DiscoveryBoardModel>();
+                using (OleDbConnection excel_con = new OleDbConnection(conString))
+                {
+                    excel_con.Open();
+                    using (OleDbDataAdapter oda = new OleDbDataAdapter("SELECT * FROM [" + ConfigurationManager.AppSettings["DBoardSheetName"] + "]", excel_con))
+                    {
+                        oda.Fill(dtExcelData);
+                    }
+                    excel_con.Close();
+                }
+                for (int i = 0; i < dtExcelData.Rows.Count; i++)
+                {
+                    if (dtExcelData.Rows[i]["Status"].ToString() != "N/A")
+                    {
+                        DiscoveryBoardModel model = new DiscoveryBoardModel();
+                        model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                        //Completed = 1; Inprogress & N/A = 0
+                        model.Status = dtExcelData.Rows[i]["Status"].ToString() == "Completed" ? 1 : 0;
+                        //Visible = true; Hidden & N/A = false
+                        model.VisibleToClient = dtExcelData.Rows[i]["Hidden/Visible"].ToString() == "Visible" ? true : false;
+                        if (dtExcelData.Rows[i]["Card Deck"].ToString() == "HNW")
+                        {
+                            model.CardDeck = 1;
+                        }
+                        //else if (dtExcelData.Rows[i]["Card Deck"].ToString() == "UHNW")
+                        //For both UHNW and N/A
+                        else
+                        {
+                            model.CardDeck = 2;
+                        }
+                        model.Version = 1;
+                        model.DiscoverBoardDetails = new List<DiscoverBoardDetailsModel>();
+                        if (dtExcelData.Rows[i]["has data"].ToString() == "Yes")
+                        {
+                            model.hasData = true;
+                            model.DiscoverBoardDetails = setDiscoverBoardDetails(dtExcelData.Rows, i);
+                        }
+                        model.ModifiedOn = (DateTime)dtExcelData.Rows[i]["(Do Not Modify) Modified On"];
+                        discoveryBoardModels.Add(model);
+                    }
+                }
+                //Use discoveryBoardModels to save data in DB table 
+                var service = GetCrmOrganizationService();
+                Guid discoveryBoardId = Guid.Empty;
+                string households = @"
+                <fetch mapping='logical'>  
+                <entity name='account'>   
+                 <attribute name='accountid'/>   
+                 <attribute name='name'/>
+                 <order descending='false' attribute='name'/>              
+                </entity>   
+                </fetch>";
+                EntityCollection result = service.RetrieveMultiple(new FetchExpression(households));
+                string discoveryCards = @"  
+                                    <fetch mapping='logical'>  
+                                      <entity name='new_discoverycard'>   
+                                         <attribute name='new_discoverycardid'/>   
+                                         <attribute name='new_cardtext'/>  
+                                         <attribute name='new_type'/>  
+                                         <attribute name='new_household'/>
+                                         <order descending = 'false' attribute = 'new_name'/>
+                                      </entity>   
+                                    </fetch> ";
+                EntityCollection dCardResult = service.RetrieveMultiple(new FetchExpression(discoveryCards));
+                List<string> missingHHList = new List<string>();
+                List<string> missingCardList = new List<string>();
+                int totalDBoard = 0;
+                int totalDBoardDetails = 0;
+                int totaldBoardWWH = 0;
+                foreach (var item in discoveryBoardModels)
+                {
+                    try
+                    {
+                        List<Entity> Household = new List<Entity>();
+                        Household = result.Entities.Where(i => i.Attributes.Values.Contains(item.HouseholdName.Trim())).ToList();
+                        if (Household.Count == 0)
+                        {
+                            missingHHList.Add(item.HouseholdName.Trim());
+                        }
+                        else
+                        {
+                            ////Saving household to CRM
+                            Console.WriteLine("******************************************");
+                            Console.WriteLine("Discovery Board Record creation is started for Household : {0}", item.HouseholdName);
+                            tw.WriteLine("******************************************");
+                            tw.WriteLine("Discovery Board Record creation is started for Household : {0}", item.HouseholdName);
+                            var HouseholdId = Household.FirstOrDefault().GetAttributeValue<Guid>("accountid");
+                            Entity discoveryBoard = new Entity("new_discoveryboard");
+                            discoveryBoard.Attributes["new_household"] = new EntityReference("account", HouseholdId);
+                            discoveryBoard.Attributes["new_boardstatus"] = new OptionSetValue((int)item.Status);
+                            discoveryBoard.Attributes["new_version"] = item.Version;
+                            discoveryBoard.Attributes["new_cardtype"] = new OptionSetValue((int)item.CardDeck);
+                            discoveryBoard.Attributes["new_visibletoclient"] = item.VisibleToClient;
+                            discoveryBoard.Attributes["new_asofdate"] = item.ModifiedOn;
+                            discoveryBoardId = service.Create(discoveryBoard);
+                            totalDBoard++;
+                            Console.WriteLine("Discovery Board Record is created in CRM : {0}", discoveryBoardId);
+                            Console.WriteLine("******************************************");
+                            tw.WriteLine("Discovery Board Record is created in CRM : {0}", discoveryBoardId);
+                            tw.WriteLine("******************************************");
+                            if (discoveryBoardId != null)
+                            {
+                                if (item.DiscoverBoardDetails.Count > 0)
+                                {
+                                    int dBoardDetails = 0;
+                                    foreach (var card in item.DiscoverBoardDetails)
+                                    {
+                                        //Saving card details to CRM
+                                        string cardName = string.Empty;
+                                        string cardType = string.Empty;
+                                        if (card.CardName == "House master (manager) (CUSTOM)")
+                                        {
+                                            cardName = "House master (manager)";
+                                            cardType = "custom";
+                                        }
+                                        else if (card.CardName == "Fully transparent functionality G1 & G2 (Easy button) (CUSTOM)")
+                                        {
+                                            cardName = "Fully transparent functionality G1 & G2 (Easy button)";
+                                            cardType = "custom";
+                                        }
+                                        else if (card.CardName == "Business Transition (2X's) (CUSTOM)")
+                                        {
+                                            cardName = "Business Transition (2X's)";
+                                            cardType = "custom";
+                                        }
+                                        else if (card.CardName == "Fund wedding(s) (CUSTOM)")
+                                        {
+                                            cardName = "Fund wedding(s)";
+                                            cardType = "custom";
+                                        }
+                                        else
+                                        {
+                                            string str = card.CardName;
+                                            var splitCardName = str.Split('(');
+                                            cardName = splitCardName[0];
+                                            cardType = splitCardName[1].Split(')')[0].ToLower();
+                                        }
+                                        int cType = 0;
+                                        if (cardType == "both")
+                                        {
+                                            cType = 3;
+                                        }
+                                        else if (cardType == "hnw")
+                                        {
+                                            cType = 1;
+                                        }
+                                        else if (cardType == "uhnw")
+                                        {
+                                            cType = 2;
+                                        }
+                                        else if (cardType == "custom")
+                                        {
+                                            cType = 1000000;
+                                        }
+                                        Guid cardId = Guid.Empty;
+                                        foreach (var items in dCardResult.Entities)
+                                        {
+                                            string cardText = items.Attributes["new_cardtext"].ToString().Trim().ToLower();
+                                            if (cardText == cardName.Trim().ToLower())
+                                            {
+                                                Guid boardDetailId = Guid.Empty;
+                                                OptionSetValue type = new OptionSetValue();
+                                                type = (OptionSetValue)items.Attributes["new_type"];
+                                                if (cType == 1000000 && type.Value == 1000000)
+                                                {
+                                                    Guid cardHHid = ((Microsoft.Xrm.Sdk.EntityReference)items.Attributes.Values.LastOrDefault()).Id;
+                                                    if (HouseholdId == cardHHid)
+                                                    {
+                                                        cardId = (Guid)items.Attributes.Values.FirstOrDefault();
+                                                        Entity discoveryBoardDetails = new Entity("new_discoveryboarddetails");
+                                                        discoveryBoardDetails.Attributes["new_discoveryboard"] = new EntityReference("new_discoveryboard", discoveryBoardId);
+                                                        discoveryBoardDetails.Attributes["new_discoverycard"] = new EntityReference("new_discoverycard", (Guid)cardId);
+                                                        discoveryBoardDetails.Attributes["new_cardlocation"] = card.CardLocation;
+                                                        boardDetailId = service.Create(discoveryBoardDetails);
+                                                        dBoardDetails++;
+                                                        totalDBoardDetails++;
+                                                        Console.WriteLine("Discovery Board Details Record is created for CardName: {0}", card.CardName.Trim());
+                                                        Console.WriteLine("------------------------------------------");
+                                                        tw.WriteLine("Discovery Board Details Record is created for CardName: {0}", card.CardName.Trim());
+                                                        tw.WriteLine("------------------------------------------");
+                                                        break;
+                                                    }
+                                                }
+                                                else if (type.Value == cType)
+                                                {
+                                                    cardId = (Guid)items.Attributes.Values.FirstOrDefault();
+                                                    Entity discoveryBoardDetails = new Entity("new_discoveryboarddetails");
+                                                    discoveryBoardDetails.Attributes["new_discoveryboard"] = new EntityReference("new_discoveryboard", discoveryBoardId);
+                                                    discoveryBoardDetails.Attributes["new_discoverycard"] = new EntityReference("new_discoverycard", (Guid)cardId);
+                                                    discoveryBoardDetails.Attributes["new_cardlocation"] = card.CardLocation;
+                                                    boardDetailId = service.Create(discoveryBoardDetails);
+                                                    dBoardDetails++;
+                                                    totalDBoardDetails++;
+                                                    Console.WriteLine("Discovery Board Details Record is created for CardName: {0}", card.CardName.Trim());
+                                                    Console.WriteLine("------------------------------------------");
+                                                    tw.WriteLine("Discovery Board Details Record is created for CardName: {0}", card.CardName.Trim());
+                                                    tw.WriteLine("------------------------------------------");
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Console.WriteLine("Total Discovery Board Details records created : {0}", dBoardDetails);
+                                    tw.WriteLine("Total Discovery Board Details records created : {0}", dBoardDetails);
+                                }
+                                //wwh data saving to CRM
+                                List<WWHHeaderModel> wwhdata = new List<WWHHeaderModel>();
+                                wwhdata = wwhData.Where(i => i.HouseholdName == item.HouseholdName).ToList();
+                                if (wwhdata.Count > 0)
+                                {
+                                    int dBoardWWH = 0;
+                                    foreach (var header in wwhdata)
+                                    {
+                                        Console.WriteLine("##########################################");
+                                        Console.WriteLine("Discovery Board WWH Record creation is started for DiscoveryBoardId : {0} for the Household : {1}", discoveryBoardId, item.HouseholdName);
+                                        tw.WriteLine("##########################################");
+                                        tw.WriteLine("Discovery Board WWH Record creation is started for DiscoveryBoardId : {0} for the Household : {1}", discoveryBoardId, item.HouseholdName);
+                                        //Save header
+                                        int goal = 0;
+                                        if (header.Goal.ToLower() == "self")
+                                        {
+                                            goal = 1;
+                                        }
+                                        if (header.Goal.ToLower() == "family")
+                                        {
+                                            goal = 2;
+                                        }
+                                        if (header.Goal.ToLower() == "community")
+                                        {
+                                            goal = 3;
+                                        }
+                                        Entity discoveryBoardWWH = new Entity("new_discoveryboardwhatweheard");
+                                        discoveryBoardWWH.Attributes["new_discoveryboard"] = new EntityReference("new_discoveryboard", discoveryBoardId);
+                                        discoveryBoardWWH.Attributes["new_sortorder"] = header.SortOrder;
+                                        discoveryBoardWWH.Attributes["new_goal"] = new OptionSetValue(goal);
+                                        discoveryBoardWWH.Attributes["new_headlinecontenttext"] = header.HeadingContentText;
+                                        Guid parentId = service.Create(discoveryBoardWWH);
+                                        //Testing
+                                        //Guid parentId = new Guid();
+                                        dBoardWWH++;
+                                        totaldBoardWWH++;
+                                        Console.WriteLine("Discovery Board WWH Header record is created : {0}", parentId);
+                                        tw.WriteLine("Discovery Board WWH Header record is created : {0}", parentId);
+                                        if (header.Content != null)
+                                        {
+                                            foreach (var content in header.Content)
+                                            {
+                                                //save content 
+                                                Entity discoveryBoardWWHContent = new Entity("new_discoveryboardwhatweheard");
+                                                discoveryBoardWWHContent.Attributes["new_discoveryboard"] = new EntityReference("new_discoveryboard", discoveryBoardId);
+                                                discoveryBoardWWHContent.Attributes["new_parentid"] = new EntityReference("new_discoveryboardwhatweheard", parentId);
+                                                discoveryBoardWWHContent.Attributes["new_sortorder"] = content.SortOrder;
+                                                discoveryBoardWWHContent.Attributes["new_goal"] = new OptionSetValue(goal);
+                                                discoveryBoardWWHContent.Attributes["new_headlinecontenttext"] = content.HeadingContentText;
+                                                Guid contentId = service.Create(discoveryBoardWWHContent);
+                                                //Testing
+                                                //Guid contentId = new Guid();
+                                                dBoardWWH++;
+                                                totaldBoardWWH++;
+                                                Console.WriteLine("Discovery Board WWH Content record is created : {0}", contentId);
+                                                tw.WriteLine("Discovery Board WWH Content record is created : {0}", contentId);
+                                            }
+                                        }
+                                        Console.WriteLine("##########################################");
+                                        tw.WriteLine("##########################################");
+                                    }
+                                    Console.WriteLine("Total Discovery Board WWH records created for House Hold : {0}", dBoardWWH);
+                                    tw.WriteLine("Total Discovery Board WWH records created for House Hold  : {0}", dBoardWWH);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("Exception while processing Household : {0} Message: {1} , Inner Exception : {2} , Stack Trace: {3}"
+                            , item.HouseholdName, ex.Message, ex.InnerException, ex.StackTrace);
+                        tw.WriteLine("Exception while processing Household : {0} Message: {1} , Inner Exception : {2} , Stack Trace: {3}"
+                            , item.HouseholdName, ex.Message, ex.InnerException, ex.StackTrace);
+                        throw;
+                    }
+                }
+                Console.WriteLine("Total Discovery Board records created : {0}", totalDBoard);
+                tw.WriteLine("Total Discovery Board records created : {0}", totalDBoard);
+                Console.WriteLine("Total Discovery Board Details records created : {0}", totalDBoardDetails);
+                tw.WriteLine("Total Discovery Board Details records created : {0}", totalDBoardDetails);
+                Console.WriteLine("Total Discovery Board WWH records created : {0}", totaldBoardWWH);
+                tw.WriteLine("Total Discovery Board WWH records created : {0}", totaldBoardWWH);
+
+                if (missingHHList.Count > 0)
+                {
+                    tw.WriteLine("The following Households are missing in CRM");
+                    tw.WriteLine(" ");
+                    foreach (String s in missingHHList)
+                    {
+                        tw.WriteLine(s);
+                    }
+                }
+
+
+            }
+            catch (Exception ex)
+            {
+                tw.WriteLine("Exception on DiscoveryBoard_DiscoveryBoardDetails Message: {0} , Inner Exception : {1} , Stack Trace: {2} ", ex.Message, ex.InnerException, ex.StackTrace);
+            }
+
+        }
+        /// <summary>
+        /// Extract Execl to fetch Discover Board WWH data
+        /// </summary>
+        private static List<WWHHeaderModel> DiscoverBoard_WWH(TextWriter th)
+        {
+            List<WWHHeaderModel> listWWHHeaderModel = new List<WWHHeaderModel>();
+            try
+            {
+                string conString = string.Format(@"Provider=Microsoft.Jet.OLEDB.4.0;Data Source={0};Extended Properties='Excel 8.0;HDR=YES'", ConfigurationManager.AppSettings["ExcelPath"]);
+                DataTable dtExcelData = new DataTable();
+                DiscoverBoardWWHModel models = new DiscoverBoardWWHModel();
+                using (OleDbConnection excel_con = new OleDbConnection(conString))
+                {
+                    excel_con.Open();
+                    using (OleDbDataAdapter oda = new OleDbDataAdapter("SELECT * FROM [" + ConfigurationManager.AppSettings["DBoardWWHSheetName"] + "]", excel_con))
+                    {
+                        oda.Fill(dtExcelData);
+                    }
+                    excel_con.Close();
+                }
+                for (int i = 0; i < dtExcelData.Rows.Count; i++)
+                {
+                    List<DiscoverBoardWWHModel> Lstmodels = new List<DiscoverBoardWWHModel>();
+                    models.header = new List<WWHHeaderModel>();
+                    int headerSequense = 1;
+                    int contentSequense = 1;
+                    int headerIndex = 0;
+                    #region Self Heading 1
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self Headline 1"].ToString()))
+                    {
+
+                        WWHHeaderModel model = new WWHHeaderModel();
+                        model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                        model.Goal = "Self";
+                        model.ParentId = null;
+                        model.HeadingContentText = dtExcelData.Rows[i]["Self Headline 1"].ToString();
+                        model.SortOrder = headerSequense;
+                        headerSequense++;
+                        models.header.Add(model);
+                    }
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self Headline 1"].ToString()))
+                    {
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 1 Content - 1"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            models.header[headerIndex].Content = new List<WWHConentnModel>();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 1 Content - 1"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 1 Content - 2"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 1 Content - 2"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self  1 Content - 3"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self  1 Content - 3"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 1 Content - 4"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 1 Content - 4"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 1 Content - 5"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 1 Content - 5"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 1 Content - 6"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 1 Content - 6"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 1 Content - 7"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 1 Content - 7"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 1 Content - 8"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 1 Content - 8"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                    }
+                    #endregion
+                    #region Self Heading 2
+                    contentSequense = 1;
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self Headline 2"].ToString()))
+                    {
+                        WWHHeaderModel model = new WWHHeaderModel();
+                        model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                        model.Goal = "Self";
+                        model.ParentId = null;
+                        model.HeadingContentText = dtExcelData.Rows[i]["Self Headline 2"].ToString();
+                        model.SortOrder = headerSequense;
+                        headerSequense++;
+                        models.header.Add(model);
+                        headerIndex++;
+                    }
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self Headline 2"].ToString()))
+                    {
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 2 Content - 1"].ToString()))
+                        {
+                            models.header[headerIndex].Content = new List<WWHConentnModel>();
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 2 Content - 1"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 2 Content - 2"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 2 Content - 2"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self  2 Content - 3"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self  2 Content - 3"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 2 Content - 4"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 2 Content - 4"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 2 Content - 5"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 2 Content - 5"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 2 Content - 6"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 2 Content - 6"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 2 Content - 7"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 2 Content - 7"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                    }
+                    #endregion
+                    #region Self Heading 3
+                    contentSequense = 1;
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self Headline 3"].ToString()))
+                    {
+                        WWHHeaderModel model = new WWHHeaderModel();
+                        model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                        model.Goal = "Self";
+                        model.ParentId = null;
+                        model.HeadingContentText = dtExcelData.Rows[i]["Self Headline 3"].ToString();
+                        model.SortOrder = headerSequense;
+                        headerSequense++;
+                        models.header.Add(model);
+                        headerIndex++;
+                    }
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self Headline 3"].ToString()))
+                    {
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 3 Content - 1"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            models.header[headerIndex].Content = new List<WWHConentnModel>();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 3 Content - 1"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 3 Content - 2"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 3 Content - 2"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 3 Content - 3"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 3 Content - 3"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 3 Content - 4"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 3 Content - 4"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 3 Content - 5"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 3 Content - 5"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 3 Content - 6"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 3 Content - 6"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                    }
+                    #endregion
+                    #region Self Heading 4
+                    contentSequense = 1;
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self Headline 4"].ToString()))
+                    {
+                        WWHHeaderModel model = new WWHHeaderModel();
+                        model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                        model.Goal = "Self";
+                        model.ParentId = null;
+                        model.HeadingContentText = dtExcelData.Rows[i]["Self Headline 4"].ToString();
+                        model.SortOrder = headerSequense;
+                        headerSequense++;
+                        models.header.Add(model);
+                        headerIndex++;
+                    }
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self Headline 4"].ToString()))
+                    {
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 4 Content - 1"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            models.header[headerIndex].Content = new List<WWHConentnModel>();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 4 Content - 1"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 4 Content - 2"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 4 Content - 2"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 4 Content - 3"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 4 Content - 3"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Self 4 Content - 4"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Self";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 4 Content - 4"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                    }
+                    #endregion
+                    #region Family Heading 1
+                    headerSequense = 1;
+                    contentSequense = 1;
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family Headline 1"].ToString()))
+                    {
+                        WWHHeaderModel model = new WWHHeaderModel();
+                        model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                        model.Goal = "Family";
+                        model.ParentId = null;
+                        model.HeadingContentText = dtExcelData.Rows[i]["Family Headline 1"].ToString();
+                        model.SortOrder = headerSequense;
+                        headerSequense++;
+                        models.header.Add(model);
+                        headerIndex++;
+                    }
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family Headline 1"].ToString()))
+                    {
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 1 Content - 1"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            models.header[headerIndex].Content = new List<WWHConentnModel>();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 1 Content - 1"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 1 Content - 2"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 1 Content - 2"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family  1 Content - 3"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family  1 Content - 3"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 1 Content - 4"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 1 Content - 4"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 1 Content - 5"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 1 Content - 5"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 1 Content - 6"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 1 Content - 6"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 1 Content - 7"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 1 Content - 7"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                    }
+                    #endregion
+                    #region Family Heading 2
+                    contentSequense = 1;
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family Headline 2"].ToString()))
+                    {
+                        WWHHeaderModel model = new WWHHeaderModel();
+                        model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                        model.Goal = "Family";
+                        model.ParentId = null;
+                        model.HeadingContentText = dtExcelData.Rows[i]["Family Headline 2"].ToString();
+                        model.SortOrder = headerSequense;
+                        headerSequense++;
+                        models.header.Add(model);
+                        headerIndex++;
+                    }
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family Headline 2"].ToString()))
+                    {
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 2 Content - 1"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            models.header[headerIndex].Content = new List<WWHConentnModel>();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 2 Content - 1"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 2 Content - 2"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 2 Content - 2"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 2 Content - 3"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 2 Content - 3"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 2 Content - 4"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 2 Content - 4"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 2 Content - 5"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 2 Content - 5"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 2 Content - 6"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Self 2 Content - 6"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                    }
+                    #endregion
+                    #region Family Heading 3
+                    contentSequense = 1;
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family Headline 3"].ToString()))
+                    {
+                        WWHHeaderModel model = new WWHHeaderModel();
+                        model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                        model.Goal = "Family";
+                        model.ParentId = null;
+                        model.HeadingContentText = dtExcelData.Rows[i]["Family Headline 3"].ToString();
+                        model.SortOrder = headerSequense;
+                        headerSequense++;
+                        models.header.Add(model);
+                        headerIndex++;
+                    }
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family Headline 3"].ToString()))
+                    {
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 3 Content - 1"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            models.header[headerIndex].Content = new List<WWHConentnModel>();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 3 Content - 1"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 3 Content - 2"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 3 Content - 2"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 3 Content - 3"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 3 Content - 3"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 3 Content - 4"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 3 Content - 4"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 3 Content - 5"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 3 Content - 5"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Family 3 Content - 6"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Family";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Family 3 Content - 6"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                    }
+                    #endregion
+                    #region Community Heading 1
+                    headerSequense = 1;
+                    contentSequense = 1;
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community Headline 1"].ToString()))
+                    {
+                        WWHHeaderModel model = new WWHHeaderModel();
+                        model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                        model.Goal = "Community";
+                        model.ParentId = null;
+                        model.HeadingContentText = dtExcelData.Rows[i]["Community Headline 1"].ToString();
+                        model.SortOrder = headerSequense;
+                        headerSequense++;
+                        models.header.Add(model);
+                        headerIndex++;
+                    }
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community Headline 1"].ToString()))
+                    {
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community 1 Content - 1"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            models.header[headerIndex].Content = new List<WWHConentnModel>();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Community";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Community 1 Content - 1"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community 1 Content - 2"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Community";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Community 1 Content - 2"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community  1 Content - 3"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Community";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Community  1 Content - 3"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community 1 Content - 4"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Community";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Community 1 Content - 4"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community 1 Content - 5"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Community";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Community 1 Content - 5"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community 1 Content - 6"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Community";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Community 1 Content - 6"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                    }
+                    #endregion
+                    #region Community Heading 2
+                    contentSequense = 1;
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community Headline 2"].ToString()))
+                    {
+                        WWHHeaderModel model = new WWHHeaderModel();
+                        model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                        model.Goal = "Community";
+                        model.ParentId = null;
+                        model.HeadingContentText = dtExcelData.Rows[i]["Community Headline 2"].ToString();
+                        model.SortOrder = headerSequense;
+                        headerSequense++;
+                        models.header.Add(model);
+                        headerIndex++;
+                    }
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community Headline 2"].ToString()))
+                    {
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community 2 Content - 1"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            models.header[headerIndex].Content = new List<WWHConentnModel>();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Community";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Community 2 Content - 1"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community 2 Content - 2"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Community";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Community 2 Content - 2"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community 2 Content - 3"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Community";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Community 2 Content - 3"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                    }
+                    #endregion
+                    #region Community Heading 3
+                    contentSequense = 1;
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community Headline 3"].ToString()))
+                    {
+                        WWHHeaderModel model = new WWHHeaderModel();
+                        model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                        model.Goal = "Community";
+                        model.ParentId = null;
+                        model.HeadingContentText = dtExcelData.Rows[i]["Community Headline 3"].ToString();
+                        model.SortOrder = headerSequense;
+                        headerSequense++;
+                        models.header.Add(model);
+                        headerIndex++;
+                    }
+                    if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community Headline 3"].ToString()))
+                    {
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community 3 Content - 1"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            models.header[headerIndex].Content = new List<WWHConentnModel>();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Community";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Community 3 Content - 1"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community 3 Content - 2"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Community";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Community 3 Content - 2"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                        if (!String.IsNullOrEmpty(dtExcelData.Rows[i]["Community 3 Content - 3"].ToString()))
+                        {
+                            WWHConentnModel model = new WWHConentnModel();
+                            model.HouseholdName = dtExcelData.Rows[i]["Household/Firm Name"].ToString();
+                            model.Goal = "Community";
+                            model.ParentId = 0;
+                            model.HeadingContentText = dtExcelData.Rows[i]["Community 3 Content - 3"].ToString();
+                            model.SortOrder = contentSequense;
+                            contentSequense++;
+                            models.header[headerIndex].Content.Add(model);
+                        }
+                    }
+                    #endregion
+                    if (models.header.Count > 0)
+                    {
+                        listWWHHeaderModel.AddRange(models.header);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                th.WriteLine("Exception on DiscoverBoard_WWH Message: {0} , Inner Exception : {1} , Stack Trace: {2} ", ex.Message, ex.InnerException, ex.StackTrace);
+            }
+            var discoverBoard = listWWHHeaderModel.OrderBy(x => x.HouseholdName).ToList();
+            return discoverBoard;
+        }
+        /// <summary>
+        /// Create Crm Organization Service
+        /// </summary>
+        /// <returns></returns>
+        public static IOrganizationService GetCrmOrganizationService()
+        {
+            IOrganizationService _service;
+            try
+            {
+                string crmService = "https://seidevcrm365.ctc.seic.com/SEIWealthCRM/XRMServices/2011/Organization.svc";
+                string userName = System.Configuration.ConfigurationManager.AppSettings["UserName"];
+                string pass = System.Configuration.ConfigurationManager.AppSettings["Pass"];
+                string domain = System.Configuration.ConfigurationManager.AppSettings["Domain"];
+                ClientCredentials Credentials = new ClientCredentials();
+
+                if (!string.IsNullOrEmpty(crmService) && crmService.Contains("https"))
+                {
+                    ServicePointManager.ServerCertificateValidationCallback = delegate (object s, X509Certificate certificate, X509Chain chain,
+                      SslPolicyErrors sslPolicyErrors)
+                    { return true; };
+                }
+                if (!string.IsNullOrEmpty(userName) && !string.IsNullOrEmpty(pass))
+                {
+                    Credentials.Windows.ClientCredential = new NetworkCredential(userName, pass, domain);
+                    // Credentials.Windows.ClientCredential = CredentialCache.DefaultNetworkCredentials;
+                    Uri OrganizationUri = new Uri(crmService);
+                    OrganizationServiceProxy serviceProxy = new OrganizationServiceProxy(OrganizationUri, null, Credentials, null);
+                    serviceProxy.EnableProxyTypes();
+                    _service = (IOrganizationService)serviceProxy;
+                }
+                else
+                {
+                    Credentials.Windows.ClientCredential = CredentialCache.DefaultNetworkCredentials;
+                    Uri OrganizationUri = new Uri(crmService);
+                    ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+                    OrganizationServiceProxy serviceProxy = new OrganizationServiceProxy(OrganizationUri, null, Credentials, null);
+                    serviceProxy.EnableProxyTypes();
+                    _service = (IOrganizationService)serviceProxy;
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Console.WriteLine("CRM service not created.");
+                throw ex;
+            }
+
+            return _service;
+        }
+        /// <summary>
+        /// Each Row will create collection object for Discover Board Details data
+        /// </summary>
+        /// <param name="rows"></param>
+        /// <param name="index"></param>
+        /// <returns></returns>
+        private static List<DiscoverBoardDetailsModel> setDiscoverBoardDetails(DataRowCollection rows, int index)
+        {
+            DiscoverBoardDetailsModel model;
+            List<DiscoverBoardDetailsModel> DiscoverBoardDetails = new List<DiscoverBoardDetailsModel>();
+            if (!String.IsNullOrEmpty(rows[index]["Allow kids financial freedom (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Allow kids financial freedom (CUSTOM)"].ToString();
+                model.CardName = "Allow kids financial freedom (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Assess career (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Assess career (CUSTOM)"].ToString();
+                model.CardName = "Assess career (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Assess insurance needs/coverage (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Assess insurance needs/coverage (CUSTOM)"].ToString();
+                model.CardName = "Assess insurance needs/coverage (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Avoid family/business role conflicts (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Avoid family/business role conflicts (UHNW)"].ToString();
+                model.CardName = "Avoid family/business role conflicts (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Be more effective with my charitable donations (BOTH)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Be more effective with my charitable donations (BOTH)"].ToString();
+                model.CardName = "Be more effective with my charitable donations (BOTH)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Be more involved with charities (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Be more involved with charities (HNW)"].ToString();
+                model.CardName = "Be more involved with charities (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Be more involved with charities (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Be more involved with charities (CUSTOM)"].ToString();
+                model.CardName = "Be more involved with charities (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Better understand finances (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Better understand finances (CUSTOM)"].ToString();
+                model.CardName = "Better understand finances (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Buy another home (BOTH)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Buy another home (BOTH)"].ToString();
+                model.CardName = "Buy another home (BOTH)";
+                DiscoverBoardDetails.Add(model);
+            }
+
+            if (!String.IsNullOrEmpty(rows[index]["Buy or lease a plane (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Buy or lease a plane (UHNW)"].ToString();
+                model.CardName = "Buy or lease a plane (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Buy/Sell a business (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Buy/Sell a business (CUSTOM)"].ToString();
+                model.CardName = "Buy/Sell a business (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Decide on gifting to family (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Decide on gifting to family (CUSTOM)"].ToString();
+                model.CardName = "Decide on gifting to family (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Decide on gifting to family (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Decide on gifting to family (UHNW)"].ToString();
+                model.CardName = "Decide on gifting to family (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Decide whether to keep/sell family business (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Decide whether to keep/sell family business (UHNW)"].ToString();
+                model.CardName = "Decide whether to keep/sell family business (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Determine how much to give (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Determine how much to give (HNW)"].ToString();
+                model.CardName = "Determine how much to give (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Determine what’s enough (BOTH)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Determine what’s enough (BOTH)"].ToString();
+                model.CardName = "Determine what’s enough (BOTH)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Ensure giving has impact (BOTH)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Ensure giving has impact (BOTH)"].ToString();
+                model.CardName = "Ensure giving has impact (BOTH)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Feel confident with financial plans (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Feel confident with financial plans (CUSTOM)"].ToString();
+                model.CardName = "Feel confident with financial plans (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Figure out what to accomplish next (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Figure out what to accomplish next (CUSTOM)"].ToString();
+                model.CardName = "Figure out what to accomplish next (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Figure out what to accomplish next (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Figure out what to accomplish next (UHNW)"].ToString();
+                model.CardName = "Figure out what to accomplish next (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Find an interesting hobby (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Find an interesting hobby (HNW)"].ToString();
+                model.CardName = "Find an interesting hobby (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Find successor to run the business (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Find successor to run the business (UHNW)"].ToString();
+                model.CardName = "Find successor to run the business (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Fund family's education (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Fund family's education (CUSTOM)"].ToString();
+                model.CardName = "Fund family's education (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Fund family's education (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Fund family's education (HNW)"].ToString();
+                model.CardName = "Fund family's education (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Get organized (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Get organized (CUSTOM)"].ToString();
+                model.CardName = "Get organized (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Get organized (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Get organized (HNW)"].ToString();
+                model.CardName = "Get organized (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Giving Back and Helping others (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Giving Back and Helping others (CUSTOM)"].ToString();
+                model.CardName = "Giving Back and Helping others (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Giving Back and Helping others (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Giving Back and Helping others (UHNW)"].ToString();
+                model.CardName = "Giving Back and Helping others (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Have children be capable of taking over business (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Have children be capable of taking over business (CUSTOM)"].ToString();
+                model.CardName = "Have children be capable of taking over business (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Have children be capable of taking over business (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Have children be capable of taking over business (UHNW)"].ToString();
+                model.CardName = "Have children be capable of taking over business (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+
+            if (!String.IsNullOrEmpty(rows[index]["Have freedom to use family wealth (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Have freedom to use family wealth (UHNW)"].ToString();
+                model.CardName = "Have freedom to use family wealth (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Help children develop appropriate work ethic (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Help children develop appropriate work ethic (CUSTOM)"].ToString();
+                model.CardName = "Help children develop appropriate work ethic (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Help children develop appropriate work ethic (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Help children develop appropriate work ethic (UHNW)"].ToString();
+                model.CardName = "Help children develop appropriate work ethic (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Help children learn about finances (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Help children learn about finances (CUSTOM)"].ToString();
+                model.CardName = "Help children learn about finances (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Help children learn about finances (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Help children learn about finances (HNW)"].ToString();
+                model.CardName = "Help children learn about finances (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Help family member in need (BOTH)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Help family member in need (BOTH)"].ToString();
+                model.CardName = "Help family member in need (BOTH)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Help kids without them becoming dependent (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Help kids without them becoming dependent (HNW)"].ToString();
+                model.CardName = "Help kids without them becoming dependent (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Increase lifestyle (BOTH)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Increase lifestyle (BOTH)"].ToString();
+                model.CardName = "Increase lifestyle (BOTH)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Legacy for family and/or community (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Legacy for family and/or community (CUSTOM)"].ToString();
+                model.CardName = "Legacy for family and/or community (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Legacy for family and/or community (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Legacy for family and/or community (HNW)"].ToString();
+                model.CardName = "Legacy for family and/or community (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Keep family together (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Keep family together (CUSTOM)"].ToString();
+                model.CardName = "Keep family together (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Keep family together (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Keep family together (UHNW)"].ToString();
+                model.CardName = "Keep family together (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Know where money is going (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Know where money is going (HNW)"].ToString();
+                model.CardName = "Know where money is going (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+
+            if (!String.IsNullOrEmpty(rows[index]["Maintain lifestyle (BOTH)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Maintain lifestyle (BOTH)"].ToString();
+                model.CardName = "Maintain lifestyle (BOTH)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Maintain sibling harmony (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Maintain sibling harmony (UHNW)"].ToString();
+                model.CardName = "Maintain sibling harmony (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Make a major charitable grant (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Make a major charitable grant (CUSTOM)"].ToString();
+                model.CardName = "Make a major charitable grant (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Make a major charitable grant (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Make a major charitable grant (UHNW)"].ToString();
+                model.CardName = "Make a major charitable grant (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Make good financial decisions (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Make good financial decisions (CUSTOM)"].ToString();
+                model.CardName = "Make good financial decisions (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Make good financial decisions (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Make good financial decisions (HNW)"].ToString();
+                model.CardName = "Make good financial decisions (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Make wealth last generations (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Make wealth last generations (CUSTOM)"].ToString();
+                model.CardName = "Make wealth last generations (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Make wealth last generations (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Make wealth last generations (UHNW)"].ToString();
+                model.CardName = "Make wealth last generations (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Not be a burden on children (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Not be a burden on children (HNW)"].ToString();
+                model.CardName = "Not be a burden on children (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+
+            if (!String.IsNullOrEmpty(rows[index]["Pay off debt (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Pay off debt (CUSTOM)"].ToString();
+                model.CardName = "Pay off debt (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Promote entreprenuership in family (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Promote entreprenuership in family (CUSTOM)"].ToString();
+                model.CardName = "Promote entreprenuership in family (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Provide for child/grandchild with special need (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Provide for child/grandchild with special need (HNW)"].ToString();
+                model.CardName = "Provide for child/grandchild with special need (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Pursue other income sources (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Pursue other income sources (CUSTOM)"].ToString();
+                model.CardName = "Pursue other income sources (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Retirement (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Retirement (HNW)"].ToString();
+                model.CardName = "Retirement (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Scale back on work (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Scale back on work (HNW)"].ToString();
+                model.CardName = "Scale back on work (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Scale back without giving up control business (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Scale back without giving up control business (UHNW)"].ToString();
+                model.CardName = "Scale back without giving up control business (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Set someone up with a business (BOTH)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Set someone up with a business (BOTH)"].ToString();
+                model.CardName = "Set someone up with a business (BOTH)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Set up and fund accounts for future generations (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Set up and fund accounts for future generations (CUSTOM)"].ToString();
+                model.CardName = "Set up and fund accounts for future generations (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Set up and fund accounts for future generations (UHNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Set up and fund accounts for future generations (UHNW)"].ToString();
+                model.CardName = "Set up and fund accounts for future generations (UHNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Share more with spouse around finances (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Share more with spouse around finances (HNW)"].ToString();
+                model.CardName = "Share more with spouse around finances (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Spend more time with kids/grandkids (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Spend more time with kids/grandkids (HNW)"].ToString();
+                model.CardName = "Spend more time with kids/grandkids (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+
+            if (!String.IsNullOrEmpty(rows[index]["Spend more time with spouse (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Spend more time with spouse (HNW)"].ToString();
+                model.CardName = "Spend more time with spouse (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Start new career (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Start new career (HNW)"].ToString();
+                model.CardName = "Start new career (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Stay involved by doing “deals” (BOTH)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Stay involved by doing “deals” (BOTH)"].ToString();
+                model.CardName = "Stay involved by doing “deals” (BOTH)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Take care of parents (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Take care of parents (HNW)"].ToString();
+                model.CardName = "Take care of parents (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Travel (BOTH)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Travel (BOTH)"].ToString();
+                model.CardName = "Travel (BOTH)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["What if my spouse becomes ill? (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["What if my spouse becomes ill? (CUSTOM)"].ToString();
+                model.CardName = "What if my spouse becomes ill? (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Worry less about finances (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Worry less about finances (CUSTOM)"].ToString();
+                model.CardName = "Worry less about finances (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Worry less about finances (HNW)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Worry less about finances (HNW)"].ToString();
+                model.CardName = "Worry less about finances (HNW)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Get a dog (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Get a dog (CUSTOM)"].ToString();
+                model.CardName = "Get a dog (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Visibility good reporting organization (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Visibility good reporting organization (CUSTOM)"].ToString();
+                model.CardName = "Visibility good reporting organization (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Investment oversite (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Investment oversite (CUSTOM)"].ToString();
+                model.CardName = "Investment oversite (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Someone to stay on top of these goals (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Someone to stay on top of these goals (CUSTOM)"].ToString();
+                model.CardName = "Someone to stay on top of these goals (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["VT home (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["VT home (CUSTOM)"].ToString();
+                model.CardName = "VT home (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Canada implication (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Canada implication (CUSTOM)"].ToString();
+                model.CardName = "Canada implication (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Argentina program clarity (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Argentina program clarity (CUSTOM)"].ToString();
+                model.CardName = "Argentina program clarity (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Increase knowledge (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Increase knowledge (CUSTOM)"].ToString();
+                model.CardName = "Increase knowledge (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Establish passive income stream (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Establish passive income stream (CUSTOM)"].ToString();
+                model.CardName = "Establish passive income stream (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Be independent and aware of wealth and responsibility (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Be independent and aware of wealth and responsibility (CUSTOM)"].ToString();
+                model.CardName = "Be independent and aware of wealth and responsibility (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Succession plan (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Succession plan (CUSTOM)"].ToString();
+                model.CardName = "Succession plan (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["More connections with friends (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["More connections with friends (CUSTOM)"].ToString();
+                model.CardName = "More connections with friends (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+
+
+            if (!String.IsNullOrEmpty(rows[index]["House master (manager) (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["House master (manager) (CUSTOM)"].ToString();
+                model.CardName = "House master (manager) (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Confidence in the plan & execution (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Confidence in the plan & execution (CUSTOM)"].ToString();
+                model.CardName = "Confidence in the plan & execution (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Fully transparent functionality G1 & G2 (Easy button) (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Fully transparent functionality G1 & G2 (Easy button) (CUSTOM)"].ToString();
+                model.CardName = "Fully transparent functionality G1 & G2 (Easy button) (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Have fun (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Have fun (CUSTOM)"].ToString();
+                model.CardName = "Have fun (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Real estate (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Real estate (CUSTOM)"].ToString();
+                model.CardName = "Real estate (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Pay ourselves (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Pay ourselves (CUSTOM)"].ToString();
+                model.CardName = "Pay ourselves (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Enjoy \"it\" more (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Enjoy \"it\" more (CUSTOM)"].ToString();
+                model.CardName = "Enjoy \"it\" more (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Catamaran (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Catamaran (CUSTOM)"].ToString();
+                model.CardName = "Catamaran (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Home renovation (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Home renovation (CUSTOM)"].ToString();
+                model.CardName = "Home renovation (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Fund wedding(s) (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Fund wedding(s) (CUSTOM)"].ToString();
+                model.CardName = "Fund wedding(s) (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Fund 10 year anniversary (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Fund 10 year anniversary (CUSTOM)"].ToString();
+                model.CardName = "Fund 10 year anniversary (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Save more money (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Save more money (CUSTOM)"].ToString();
+                model.CardName = "Save more money (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["What will my spouse do without me? (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["What will my spouse do without me? (CUSTOM)"].ToString();
+                model.CardName = "What will my spouse do without me? (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Kickstart new business (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Kickstart new business (CUSTOM)"].ToString();
+                model.CardName = "Kickstart new business (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Business Transition (2X's) (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Business Transition (2X's) (CUSTOM)"].ToString();
+                model.CardName = "Business Transition (2X's) (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Key man (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Key man (CUSTOM)"].ToString();
+                model.CardName = "Key man (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Will Trusts Medical (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Will Trusts Medical (CUSTOM)"].ToString();
+                model.CardName = "Will Trusts Medical (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Mortgage (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Mortgage (CUSTOM)"].ToString();
+                model.CardName = "Mortgage (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+
+            }
+            if (!String.IsNullOrEmpty(rows[index]["Confidence with Investment Plan (CUSTOM)"].ToString()))
+            {
+                model = new DiscoverBoardDetailsModel();
+                model.CardLocation = rows[index]["Confidence with Investment Plan (CUSTOM)"].ToString();
+                model.CardName = "Confidence with Investment Plan (CUSTOM)";
+                DiscoverBoardDetails.Add(model);
+            }
+
+            return DiscoverBoardDetails;
+        }
+    }
+}
